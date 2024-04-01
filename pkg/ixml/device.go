@@ -174,7 +174,7 @@ func getDeviceByUUID(uuid string) (*device, error) {
 	return d, nil
 }
 
-func getDeviceOnSameBoard(device1 device, device2 device, onSameBoard *C.int)(error){
+func getDeviceOnSameBoard(device1 device, device2 device, onSameBoard *C.int) error {
 	ret := C.ixmlDeviceOnSameBoard(device1.handle, device2.handle, onSameBoard)
 
 	if ret != C.NVML_SUCCESS {
@@ -211,36 +211,36 @@ func (d *device) DeviceGetUUID() (string, error) {
 }
 
 func (d *device) DeviceGetUUIDSlice() ([]string, error) {
-	uuid,err := d.DeviceGetUUID()
+	uuid, err := d.DeviceGetUUID()
 	if err != nil {
-		return nil,fmt.Errorf("Failed to get device UUID of gpu")
+		return nil, fmt.Errorf("Failed to get device UUID of gpu")
 	}
 
-	minor,err := d.DeviceGetMinorNumber()
+	minor, err := d.DeviceGetMinorNumber()
 	if err != nil {
-		return nil,fmt.Errorf("Failed to get device minor number : %v",err)
+		return nil, fmt.Errorf("Failed to get device minor number : %v", err)
 	}
 
 	var uuidslice []string
-	count,_ := getDeviceCount()
+	count, _ := getDeviceCount()
 	for i := uint(0); i < count; i++ {
 		if i == minor {
 			uuidslice = append(uuidslice, uuid)
 			continue
 		}
 
-		device,err := getDeviceByIndex(i)
-		if err!= nil {
-			return nil,fmt.Errorf("Failed to get device handle of gpu-%d", i)
+		device, err := getDeviceByIndex(i)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get device handle of gpu-%d", i)
 		}
 
 		var onSameBoard C.int
 		getDeviceOnSameBoard(*d, *device, &onSameBoard)
 		if onSameBoard == 1 {
-			uuid,err := device.DeviceGetUUID()
+			uuid, err := device.DeviceGetUUID()
 			if err != nil {
-				 return nil,fmt.Errorf("Failed to get device UUID of gpu")
-			 }
+				return nil, fmt.Errorf("Failed to get device UUID of gpu")
+			}
 			uuidslice = append(uuidslice, uuid)
 		}
 
@@ -248,7 +248,7 @@ func (d *device) DeviceGetUUIDSlice() ([]string, error) {
 
 	fmt.Println()
 
-	return uuidslice,nil
+	return uuidslice, nil
 }
 
 func (d *device) DeviceGetIndex() (uint, error) {
@@ -275,13 +275,13 @@ func (d *device) DeviceGetMinorNumber() (uint, error) {
 }
 
 func (d *device) DeviceGetMinorSlice() ([]uint, error) {
-	minor,err := d.DeviceGetMinorNumber()
+	minor, err := d.DeviceGetMinorNumber()
 	if err != nil {
-		return nil,fmt.Errorf("Failed to get device minor number : %v", err)
+		return nil, fmt.Errorf("Failed to get device minor number : %v", err)
 	}
 
 	var minorslice []uint
-	count,_ := getDeviceCount()
+	count, _ := getDeviceCount()
 	for i := uint(0); i < count; i++ {
 		if i == minor {
 			minorslice = append(minorslice, minor)
@@ -302,7 +302,7 @@ func (d *device) DeviceGetMinorSlice() ([]uint, error) {
 		}
 	}
 
-	return minorslice,nil
+	return minorslice, nil
 }
 
 func (d *device) DeviceGetFanSpeed() (uint, error) {

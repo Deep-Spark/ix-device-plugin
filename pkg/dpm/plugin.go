@@ -101,11 +101,11 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 				return nil, fmt.Errorf("Invalid allocation request for '%s': unknown device: %s", resourceName, id)
 			}
 
-			for _, dev := range p.devices{
+			for _, dev := range p.devices {
 				if id == dev.uuid {
-					for k,v := range dev.minorslice{
-					deviceIDs = append(deviceIDs, dev.uuidslice[k])
-						device := p.allocateDevicesByDeviceID(v,minorInContainer)
+					for k, v := range dev.minorslice {
+						deviceIDs = append(deviceIDs, dev.uuidslice[k])
+						device := p.allocateDevicesByDeviceID(v, minorInContainer)
 						minorInContainer++
 						response.Devices = append(response.Devices, device)
 					}

@@ -61,7 +61,7 @@ type Device interface {
 	// DeviceGetMinorNumber returns the minor number.
 	DeviceGetMinorNumber() (uint, error)
 
-	// DeviceGetMinorSlice returns the minor number slice.	
+	// DeviceGetMinorSlice returns the minor number slice.
 	DeviceGetMinorSlice() ([]uint, error)
 
 	// DeviceGetUUID returns the uuid of the gpu.

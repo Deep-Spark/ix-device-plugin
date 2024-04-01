@@ -20,8 +20,8 @@ package main
 import (
 	"flag"
 
+	dpm "gitee.com/deep-spark/ix-device-plugin/pkg/dpm"
 	"github.com/golang/glog"
-        dpm "gitee.com/deep-spark/ix-device-plugin/pkg/dpm"
 )
 
 func main() {

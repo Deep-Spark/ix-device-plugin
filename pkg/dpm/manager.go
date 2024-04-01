@@ -22,9 +22,9 @@ import (
 	"os"
 	"syscall"
 
+	"gitee.com/deep-spark/ix-device-plugin/pkg/ixml"
 	"github.com/fsnotify/fsnotify"
 	"github.com/golang/glog"
-        "gitee.com/deep-spark/ix-device-plugin/pkg/ixml"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 

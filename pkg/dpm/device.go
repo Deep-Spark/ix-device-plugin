@@ -20,8 +20,8 @@ package dpm
 import (
 	"strings"
 
+	"gitee.com/deep-spark/ix-device-plugin/pkg/ixml"
 	"github.com/golang/glog"
-        "gitee.com/deep-spark/ix-device-plugin/pkg/ixml"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
@@ -30,12 +30,12 @@ const deviceName string = "iluvatar"
 type device struct {
 	pluginapi.Device
 
-	name  string
-	minor uint
+	name       string
+	minor      uint
 	minorslice []uint
-	uuid  string
-	uuidslice []string
-	index uint
+	uuid       string
+	uuidslice  []string
+	index      uint
 }
 
 type iluvatarDevice struct {
@@ -113,9 +113,9 @@ func (d *iluvatarDevice) cachedDevices() []*pluginapi.Device {
 
 	for _, d := range d.devices {
 		flag := false
-		for _,v := range d.minorslice {
-			if (v < d.minor) {
-			   flag = true
+		for _, v := range d.minorslice {
+			if v < d.minor {
+				flag = true
 			}
 		}
 
