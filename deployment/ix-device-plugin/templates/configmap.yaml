@@ -1,0 +1,13 @@
+{{- if .Values.ixConfig }}
+apiVersion: v1
+kind: ConfigMap
+data:
+  ix-config: |-
+    version: "{{ .Values.image.tag }}"
+{{- with .Values.ixConfig }}
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+
+metadata:
+  name: {{ .Values.cfgName }}
+{{- end }}

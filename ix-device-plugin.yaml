@@ -13,38 +13,91 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+apiVersion: v1
+kind: ConfigMap
+data:
+  ix-config: |-
+    version: "4.2.0"
+    flags:
+      splitboard: false
 
+metadata:
+  name: ix-config
+  namespace: kube-system
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: iluvatar-device-plugin
   namespace: kube-system
+  labels:
+    app.kubernetes.io/name: iluvatar-device-plugin
 spec:
   selector:
     matchLabels:
-      name: iluvatar-device-plugin-ds
+      app.kubernetes.io/name: iluvatar-device-plugin
   template:
     metadata:
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ""
       labels:
-        name: iluvatar-device-plugin-ds
+        app.kubernetes.io/name: iluvatar-device-plugin
     spec:
-      tolerations:
-      - key: CriticalAddonsOnly
-        operator: Exists
       priorityClassName: "system-node-critical"
+      securityContext:
+        null
       containers:
-      - image: ix-device-plugin:1.0.0
-        name: iluvatar-device-plugin-ctr
-        securityContext:
-          privileged: true
-          capabilities:
-            drop: ["ALL"]
-        volumeMounts:
-          - name: device-plugin
-            mountPath: /var/lib/kubelet/device-plugins
+        - name: iluvatar-device-plugin
+          securityContext:
+            capabilities:
+              drop:
+              - ALL
+            privileged: true
+          image: "ix-device-plugin:4.2.0"
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+              - ls
+              - /var/lib/kubelet/device-plugins/iluvatar-gpu.sock
+            periodSeconds: 5
+          startupProbe:
+            exec:
+              command:
+              - ls
+              - /var/lib/kubelet/device-plugins/iluvatar-gpu.sock
+            periodSeconds: 5
+          resources:
+            {}
+          volumeMounts:
+            - mountPath: /var/lib/kubelet/device-plugins
+              name: device-plugin
+            - mountPath: /run/udev
+              name: udev-ctl
+              readOnly: true
+            - mountPath: /sys
+              name: sys
+              readOnly: true
+            - mountPath: /dev
+              name: dev
+            - name: ixc
+              mountPath: /ixconfig
       volumes:
-        - name: device-plugin
-          hostPath:
+        - hostPath:
             path: /var/lib/kubelet/device-plugins
+          name: device-plugin
+        - hostPath:
+            path: /run/udev
+          name: udev-ctl
+        - hostPath:
+            path: /sys
+          name: sys
+        - hostPath:
+            path: /etc/udev/
+          name: udev-etc
+        - hostPath:
+            path: /dev
+          name: dev
+        - name: ixc
+          configMap:
+              name: ix-config

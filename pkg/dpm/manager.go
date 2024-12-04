@@ -22,15 +22,20 @@ import (
 	"os"
 	"syscall"
 
+	"gitee.com/deep-spark/ix-device-plugin/pkg/config"
 	"gitee.com/deep-spark/ix-device-plugin/pkg/ixml"
 	"github.com/fsnotify/fsnotify"
-	"github.com/golang/glog"
+	udev "github.com/jochenvg/go-udev"
+	"github.com/urfave/cli/v2"
+	"golang.org/x/net/context"
+	"k8s.io/klog/v2"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
 // Manager contains the main machinery of iluvatar device plugin framwork.
 type Manager struct {
-	fsWatcher *fsnotify.Watcher
+	fsWatcher   *fsnotify.Watcher
+	udevWatcher <-chan *udev.Device
 
 	sigs chan os.Signal
 }
@@ -43,35 +48,58 @@ func NewManager() *Manager {
 }
 
 // Run starts the Manager
-func (m *Manager) Run() error {
-	glog.Info("Loading IXML")
-	err := ixml.Init()
+func (m *Manager) Run(c *cli.Context, flags []cli.Flag) error {
+	klog.Info("Loading configuration.")
+	cfg, err := config.LoadConfig(c, flags)
 	if err != nil {
-		glog.Errorf("Failed to initialize IXML: %v", err)
+		return fmt.Errorf("unable to load config: %v", err)
+	}
 
+	klog.Info("Loading IXML")
+	err = ixml.Init()
+	if err != nil {
+		klog.Errorf("Failed to initialize IXML: %v", err)
 		return fmt.Errorf("%v", err)
-
 	}
 	defer func() {
-		glog.Info("Shutdown of IXML returned:", ixml.Shutdown())
+		klog.Info("Shutdown of IXML returned:", ixml.Shutdown())
 	}()
 
-	glog.Info("Starting FS watcher.")
+	klog.Info("Starting FS watcher.")
 	m.fsWatcher, err = newFSWatcher(pluginapi.DevicePluginPath)
 	if err != nil {
 		return fmt.Errorf("Failed to create FS watcher: %v", err)
 	}
 	defer m.fsWatcher.Close()
 
-	glog.Info("Starting OS watcher.")
+	klog.Info("Starting OS watcher.")
 	m.sigs = newOSWatcher(syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer close(m.sigs)
 
+	//ix device udev watchr
+	klog.Info("Starting IX device watcher.")
+	ctx := context.Background()
+	u := udev.Udev{}
+	udevMonitor := u.NewMonitorFromNetlink("kernel")
+	if udevMonitor == nil {
+		return fmt.Errorf("Failed to create udev context: %v", err)
+	}
+
+	err = udevMonitor.FilterAddMatchSubsystem(config.UdevWatcherSubsystem)
+	if err != nil {
+		return fmt.Errorf("Failed to add udev subsystem: %v", err)
+	}
+
+	m.udevWatcher, err = udevMonitor.DeviceChan(ctx)
+	if err != nil {
+		return fmt.Errorf("Failed to create udev watcher: %v", err)
+	}
+
+	server := newServer(cfg)
 Restart:
-	server := newServer()
 	err = server.start()
 	if err != nil {
-		glog.Info("Failed to start plugin.")
+		klog.Info("Failed to start plugin.")
 
 		return fmt.Errorf("Failed to start plugin: %v", err)
 	}
@@ -87,21 +115,23 @@ HandleEvents:
 		case event := <-m.fsWatcher.Events:
 			if event.Name == pluginapi.KubeletSocket {
 				if event.Op&fsnotify.Create == fsnotify.Create {
-					glog.Infof("Notify '%s' created, restarting plugin.", pluginapi.KubeletSocket)
+					klog.Infof("Notify '%s' created, restarting plugin.", pluginapi.KubeletSocket)
 					server.stop()
 					goto Restart
 				}
 
 				if event.Op&fsnotify.Remove == fsnotify.Remove {
-					glog.Infof("Detect '%s' removed, stopping plugin.", pluginapi.KubeletSocket)
+					klog.Infof("Detect '%s' removed, stopping plugin.", pluginapi.KubeletSocket)
 					server.stop()
 				}
 			}
-
+		case ixdev := <-m.udevWatcher:
+			klog.Infof("udev:%v\n", ixdev.Sysname())
+			server.updateUdev(ixdev)
 		case s := <-m.sigs:
 			switch s {
 			case syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT:
-				glog.Infof("Received signal %v, shutting down.", s)
+				klog.Infof("Received signal %v, shutting down.", s)
 				server.stop()
 				break HandleEvents
 			}

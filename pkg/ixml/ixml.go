@@ -17,6 +17,8 @@ limitations under the License.
 
 package ixml
 
+import goixml "gitee.com/deep-spark/go-ixml/pkg/ixml"
+
 // MemoryInfo contains information of a gpu device.
 type MemoryInfo struct {
 	Total uint64
@@ -53,6 +55,8 @@ type Utilization struct {
 	Mem uint
 }
 
+type Health uint64
+
 // Device defines the implementation of specified device.
 type Device interface {
 	// DeviceGetName returns the name of the gpu.
@@ -61,14 +65,8 @@ type Device interface {
 	// DeviceGetMinorNumber returns the minor number.
 	DeviceGetMinorNumber() (uint, error)
 
-	// DeviceGetMinorSlice returns the minor number slice.
-	DeviceGetMinorSlice() ([]uint, error)
-
 	// DeviceGetUUID returns the uuid of the gpu.
 	DeviceGetUUID() (string, error)
-
-	// DeviceGetUUIDSlice returns the uuid slice of the gpus on the same board.
-	DeviceGetUUIDSlice() ([]string, error)
 
 	// DeviceGetIndex returns the index of the gpu.
 	DeviceGetIndex() (uint, error)
@@ -96,27 +94,16 @@ type Device interface {
 
 	// DeviceGetUtilization returns gpu and memory used percent.
 	DeviceGetUtilization() (Utilization, error)
-}
 
-const (
-	XidCriticalError EventType = eventTypeXidCriticalError
-)
+	//DeviceGetHealth return the health status of the GPU
+	DeviceGetHealth() (Health, error)
 
-type EventData struct {
-	Type EventType
-	Data uint64
-}
+	//DeviceGetNumaNode return the numa node of the specific GPU
+	DeviceGetNumaNode() (bool, int, error)
 
-// Event defines the implementation of a event.
-type Event interface {
-	// RegisterEventforDevice register a event for specified device.
-	RegisterEventsForDevice(uuid string, eventType EventType) error
+	DeviceGetTopology(device2 *Device) (goixml.GpuTopologyLevel, error)
 
-	// WaitForEvent wait a event during the timeout.
-	WaitForEvent(timeout uint) (EventData, error)
-
-	// DeleteEventSet delete the registered event.
-	EventSetFree() error
+	DeviceGetBoardPosition() (bool, int)
 }
 
 // Init
@@ -162,16 +149,4 @@ func NewDeviceByUUID(uuid string) (Device, error) {
 	}
 
 	return dev, nil
-}
-
-// NewEventSet create a device event.
-func NewEventSet() (Event, error) {
-	set, err := newEventSet()
-	if err != nil {
-		return nil, err
-	}
-
-	return &eventSet{
-		set: set,
-	}, nil
 }

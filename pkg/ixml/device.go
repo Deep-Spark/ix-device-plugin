@@ -18,85 +18,46 @@ limitations under the License.
 package ixml
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
-	"sync"
+	"os"
+	"strconv"
+	"strings"
+
+	goixml "gitee.com/deep-spark/go-ixml/pkg/ixml"
 )
 
-// #cgo LDFLAGS: -ldl
-// #include "ixml.h"
-import "C"
-
-const (
-	szDriverVersion = C.NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE
-	szCudaVersion   = 256
-	szName          = C.NVML_DEVICE_NAME_BUFFER_SIZE
-	szUUID          = C.NVML_DEVICE_UUID_BUFFER_SIZE
+var (
+	HealthSYSHUBError      = fmt.Errorf("SYSHUBError")
+	HealthMCError          = fmt.Errorf("MCError")
+	HealthOverTempError    = fmt.Errorf("OverTempError")
+	HealthOverVoltageError = fmt.Errorf("OverVoltageError")
+	HealthECCError         = fmt.Errorf("ECCError")
+	HealthMemoryError      = fmt.Errorf("MemoryError")
+	HealthPCIEError        = fmt.Errorf("PCIEError")
 )
-
-type deviceHandle C.nvmlDevice_t
-
-var cachedDevicesByIndex map[uint]deviceHandle
-var cachedDevicesByUUID map[string]deviceHandle
-
-func init() {
-	var once sync.Once
-
-	once.Do(func() {
-		cachedDevicesByIndex = make(map[uint]deviceHandle)
-		cachedDevicesByUUID = make(map[string]deviceHandle)
-	})
-}
-
-func registerDevice(index uint, uuid string, device deviceHandle) {
-	cachedDevicesByIndex[index] = device
-	cachedDevicesByUUID[uuid] = device
-}
-
-func unregisterDevice() {
-	for k := range cachedDevicesByIndex {
-		delete(cachedDevicesByIndex, k)
-	}
-
-	for k := range cachedDevicesByUUID {
-		delete(cachedDevicesByUUID, k)
-	}
-}
 
 func deviceInit() error {
-	ret := C.dl_init()
-	if ret == C.NVML_ERROR_LIBRARY_NOT_FOUND {
-		return fmt.Errorf("Library '%s' not found.", string(C.IXML_LIBRARY))
-	} else if ret == C.NVML_ERROR_FUNCTION_NOT_FOUND {
-		return fmt.Errorf("Symbol not found.")
+	ret := goixml.Init()
+	if ret != goixml.SUCCESS {
+		return fmt.Errorf("Failed to init ixml.")
 	}
-
-	ret = C.ixmlInit()
-	if ret != C.NVML_SUCCESS {
-		return fmt.Errorf("Failed to initialize ixml.")
-	}
-
 	return nil
 }
 
 func deviceShutdown() error {
-	ret := C.ixmlShutdown()
-	if ret != C.NVML_SUCCESS {
+	ret := goixml.Shutdown()
+	if ret != goixml.SUCCESS {
 		return fmt.Errorf("Failed to shutdown ixml.")
-	}
-
-	ret = C.dl_close()
-	if ret != C.NVML_SUCCESS {
-		return fmt.Errorf("Failed to close handler of '%s'.", string(C.IXML_LIBRARY))
 	}
 
 	return nil
 }
 
 func getDeviceCount() (uint, error) {
-	var num C.uint
-
-	ret := C.ixmlDeviceGetCount(&num)
-	if ret != C.NVML_SUCCESS {
+	num, ret := goixml.DeviceGetCount()
+	if ret != goixml.SUCCESS {
 		return 0, fmt.Errorf("Failed to get the count of gpu device.")
 	}
 
@@ -104,24 +65,24 @@ func getDeviceCount() (uint, error) {
 }
 
 func getDriverVersion() (string, error) {
-	var version [szDriverVersion]C.char
-
-	ret := C.ixmlSystemGetDriverVersion(&version[0], szDriverVersion)
-	if ret != C.NVML_SUCCESS {
+	version, ret := goixml.SystemGetDriverVersion()
+	if ret != goixml.SUCCESS {
 		return "", fmt.Errorf("Failed to get the driver version of gpu device.")
 	}
 
-	return C.GoString(&version[0]), nil
+	return version, nil
 }
 
 func getCudaVersion() (string, error) {
-	var version C.int
-
-	ret := C.ixmlSystemGetCudaDriverVersion(&version)
-	if ret != C.NVML_SUCCESS {
+	cudaversion, ret := goixml.SystemGetCudaDriverVersion()
+	if ret != goixml.SUCCESS {
 		return "", fmt.Errorf("Failed to get the current CUDA version.")
 	}
 
+	version, err := strconv.Atoi(cudaversion)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get the current CUDA version.")
+	}
 	major := uint(version / 1000)
 	minor := uint(version % 1000 / 10)
 
@@ -129,133 +90,78 @@ func getCudaVersion() (string, error) {
 }
 
 func getDeviceByIndex(index uint) (*device, error) {
-	if cachedDev, ok := cachedDevicesByIndex[index]; ok {
-		return &device{handle: cachedDev}, nil
-	}
-
-	var dev C.nvmlDevice_t
-
-	ret := C.ixmlDeviceGetHandleByIndex(C.uint(index), &dev)
-	if ret != C.NVML_SUCCESS {
+	var dev goixml.Device
+	ret := goixml.DeviceGetHandleByIndex(index, &dev)
+	if ret != goixml.SUCCESS {
 		return nil, fmt.Errorf("Failed to get device handle of gpu-%d", index)
 	}
 
-	d := &device{handle: deviceHandle(dev)}
-	uuid, err := d.DeviceGetUUID()
-	if err != nil {
-		return nil, err
-	}
-
-	registerDevice(index, uuid, d.handle)
+	d := &device{Device: dev}
 
 	return d, nil
 }
 
 func getDeviceByUUID(uuid string) (*device, error) {
-	if cachedDev, ok := cachedDevicesByUUID[uuid]; ok {
-		return &device{handle: cachedDev}, nil
-	}
-
-	var dev C.nvmlDevice_t
-
-	ret := C.ixmlDeviceGetHandleByUUID(C.CString(uuid), &dev)
-	if ret != C.NVML_SUCCESS {
+	dev, ret := goixml.GetHandleByUUID(uuid)
+	if ret != goixml.SUCCESS {
 		return nil, fmt.Errorf("Failed to get device handle of gpu-%s", uuid)
 	}
 
-	d := &device{handle: deviceHandle(dev)}
-	index, err := d.DeviceGetIndex()
-	if err != nil {
-		return nil, err
-	}
-
-	registerDevice(index, uuid, d.handle)
+	d := &device{Device: dev}
 
 	return d, nil
 }
 
-func getDeviceOnSameBoard(device1 device, device2 device, onSameBoard *C.int) error {
-	ret := C.ixmlDeviceOnSameBoard(device1.handle, device2.handle, onSameBoard)
-
-	if ret != C.NVML_SUCCESS {
-		return fmt.Errorf("Failed to judge whether two devices on same board")
+func GetDeviceOnSameBoard(device1 Device, device2 Device) (error, bool) {
+	isOnSameBoard := false
+	dev1, ok := device1.(*device)
+	if ok != true {
+		return fmt.Errorf("Type Error"), isOnSameBoard
+	}
+	dev2, ok := device2.(*device)
+	if ok != true {
+		return fmt.Errorf("Type Error"), isOnSameBoard
 	}
 
-	return nil
+	onSameBoard, ret := goixml.GetOnSameBoard(dev1.Device, dev2.Device)
+	if ret != goixml.SUCCESS {
+		return fmt.Errorf("Failed to judge whether two devices on same board"), isOnSameBoard
+	}
+
+	if onSameBoard == 0 {
+		isOnSameBoard = false
+	} else {
+		isOnSameBoard = true
+	}
+
+	return nil, isOnSameBoard
 }
 
 type device struct {
-	handle deviceHandle
+	goixml.Device
 }
 
 func (d *device) DeviceGetName() (string, error) {
-	var name [256]C.char
-
-	ret := C.ixmlDeviceGetName(d.handle, &name[0], 256)
-	if ret != C.NVML_SUCCESS {
+	name, ret := d.GetName()
+	if ret != goixml.SUCCESS {
 		return "", fmt.Errorf("Failed to get device name of gpu")
 	}
 
-	return C.GoString(&name[0]), nil
+	return name, nil
 }
 
 func (d *device) DeviceGetUUID() (string, error) {
-	var uuid [szUUID]C.char
-
-	ret := C.ixmlDeviceGetUUID(d.handle, &uuid[0], szUUID)
-	if ret != C.NVML_SUCCESS {
+	uuid, ret := d.GetUUID()
+	if ret != goixml.SUCCESS {
 		return "", fmt.Errorf("Failed to get device UUID of gpu")
 	}
 
-	return C.GoString(&uuid[0]), nil
-}
-
-func (d *device) DeviceGetUUIDSlice() ([]string, error) {
-	uuid, err := d.DeviceGetUUID()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get device UUID of gpu")
-	}
-
-	minor, err := d.DeviceGetMinorNumber()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get device minor number : %v", err)
-	}
-
-	var uuidslice []string
-	count, _ := getDeviceCount()
-	for i := uint(0); i < count; i++ {
-		if i == minor {
-			uuidslice = append(uuidslice, uuid)
-			continue
-		}
-
-		device, err := getDeviceByIndex(i)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to get device handle of gpu-%d", i)
-		}
-
-		var onSameBoard C.int
-		getDeviceOnSameBoard(*d, *device, &onSameBoard)
-		if onSameBoard == 1 {
-			uuid, err := device.DeviceGetUUID()
-			if err != nil {
-				return nil, fmt.Errorf("Failed to get device UUID of gpu")
-			}
-			uuidslice = append(uuidslice, uuid)
-		}
-
-	}
-
-	fmt.Println()
-
-	return uuidslice, nil
+	return uuid, nil
 }
 
 func (d *device) DeviceGetIndex() (uint, error) {
-	var index C.uint
-
-	ret := C.ixmlDeviceGetIndex(d.handle, &index)
-	if ret != C.NVML_SUCCESS {
+	index, ret := d.GetIndex()
+	if ret != goixml.SUCCESS {
 		return 0, fmt.Errorf("Failed to get device index of gpu")
 	}
 
@@ -263,10 +169,8 @@ func (d *device) DeviceGetIndex() (uint, error) {
 }
 
 func (d *device) DeviceGetMinorNumber() (uint, error) {
-	var minor C.uint
-
-	ret := C.ixmlDeviceGetMinorNumber(d.handle, &minor)
-	if ret != C.NVML_SUCCESS {
+	minor, ret := d.GetMinorNumber()
+	if ret != goixml.SUCCESS {
 		// FIXME: 100 is a pseudo value.
 		return 100, fmt.Errorf("Failed to get device minor number of gpu")
 	}
@@ -274,58 +178,23 @@ func (d *device) DeviceGetMinorNumber() (uint, error) {
 	return uint(minor), nil
 }
 
-func (d *device) DeviceGetMinorSlice() ([]uint, error) {
-	minor, err := d.DeviceGetMinorNumber()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get device minor number : %v", err)
-	}
-
-	var minorslice []uint
-	count, _ := getDeviceCount()
-	for i := uint(0); i < count; i++ {
-		if i == minor {
-			minorslice = append(minorslice, minor)
-			continue
-		}
-
-		var dev C.nvmlDevice_t
-		ret := C.ixmlDeviceGetHandleByIndex(C.uint(i), &dev)
-		if ret != C.NVML_SUCCESS {
-			return nil, fmt.Errorf("Failed to get device handle of gpu-%d", i)
-		}
-		device := device{handle: deviceHandle(dev)}
-
-		var onSameBoard C.int
-		getDeviceOnSameBoard(*d, device, &onSameBoard)
-		if onSameBoard == 1 {
-			minorslice = append(minorslice, i)
-		}
-	}
-
-	return minorslice, nil
-}
-
 func (d *device) DeviceGetFanSpeed() (uint, error) {
-	var speed C.uint
-
-	ret := C.ixmlDeviceGetFanSpeed(d.handle, &speed)
-	if ret != C.NVML_SUCCESS {
+	speed, ret := d.GetFanSpeed()
+	if ret != goixml.SUCCESS {
 		return 0, fmt.Errorf("Failed to get fan speed of gpu")
 	}
 	return uint(speed), nil
 }
 
 func (d *device) DeviceGetMemoryInfo() (MemoryInfo, error) {
-	var mem C.nvmlMemory_t
-
-	ret := C.ixmlDeviceGetMemoryInfo(d.handle, &mem)
-	if ret != C.NVML_SUCCESS {
+	mem, ret := d.GetMemoryInfo()
+	if ret != goixml.SUCCESS {
 		return MemoryInfo{}, fmt.Errorf("Failed to get memory information of gpu")
 	}
 
-	totalMem := uint64(mem.total)
-	usedMem := uint64(mem.used)
-	freeMem := uint64(mem.free)
+	totalMem := uint64(mem.Total)
+	usedMem := uint64(mem.Used)
+	freeMem := uint64(mem.Free)
 
 	// convert 'Byte' to 'MiB'
 	return MemoryInfo{
@@ -336,10 +205,8 @@ func (d *device) DeviceGetMemoryInfo() (MemoryInfo, error) {
 }
 
 func (d *device) DeviceGetTemperature() (uint, error) {
-	var temp C.uint
-
-	ret := C.ixmlDeviceGetTemperature(d.handle, C.NVML_TEMPERATURE_GPU, &temp)
-	if ret != C.NVML_SUCCESS {
+	temp, ret := d.GetTemperature()
+	if ret != goixml.SUCCESS {
 		return 0, fmt.Errorf("Failed to get the current temperature of gpu")
 	}
 
@@ -347,29 +214,33 @@ func (d *device) DeviceGetTemperature() (uint, error) {
 }
 
 func (d *device) DeviceGetPciInfo() (PciInfo, error) {
-	var pci C.nvmlPciInfo_t
-
-	ret := C.ixmlDeviceGetPciInfo(d.handle, &pci)
-	if ret != C.NVML_SUCCESS {
+	pci, ret := d.GetPciInfo()
+	if ret != goixml.SUCCESS {
 		return PciInfo{}, fmt.Errorf("Failed to get pci information of gpu")
 	}
 
+	bytesBuffer := bytes.NewBuffer([]byte{})
+	binary.Write(bytesBuffer, binary.BigEndian, &pci.BusIdLegacy)
+	busidlegacy := bytesBuffer.String()
+
+	bytesBuffer = bytes.NewBuffer([]byte{})
+	binary.Write(bytesBuffer, binary.BigEndian, &pci.BusId)
+	busid := bytesBuffer.String()
+
 	return PciInfo{
-		Bus:            uint(pci.bus),
-		BusId:          C.GoString(&pci.busId[0]),
-		BusIdLegacy:    C.GoString(&pci.busIdLegacy[0]),
-		Device:         uint(pci.device),
-		Domain:         uint(pci.domain),
-		PciDeviceId:    uint(pci.pciDeviceId),
-		PciSubSystemId: uint(pci.pciSubSystemId),
+		Bus:            uint(pci.Bus),
+		BusId:          busid,
+		BusIdLegacy:    busidlegacy,
+		Device:         uint(pci.Device),
+		Domain:         uint(pci.Domain),
+		PciDeviceId:    uint(pci.PciDeviceId),
+		PciSubSystemId: uint(pci.PciSubSystemId),
 	}, nil
 }
 
 func (d *device) DeviceGetPowerUsage() (uint, error) {
-	var usage C.uint
-
-	ret := C.ixmlDeviceGetPowerUsage(d.handle, &usage)
-	if ret != C.NVML_SUCCESS {
+	usage, ret := d.GetPowerUsage()
+	if ret != goixml.SUCCESS {
 		return 0, fmt.Errorf("Failed to get power usage of gpu")
 	}
 
@@ -377,10 +248,8 @@ func (d *device) DeviceGetPowerUsage() (uint, error) {
 }
 
 func (d *device) DeviceGetPowerLimitConstraints() (PowerLimitConstraints, error) {
-	var max, min C.uint
-
-	ret := C.ixmlDeviceGetPowerManagementLimitConstraints(d.handle, &max, &min)
-	if ret != C.NVML_SUCCESS {
+	min, max, ret := d.GetPowerManagementLimitConstraints()
+	if ret != goixml.SUCCESS {
 		return PowerLimitConstraints{}, fmt.Errorf("Failed to get power limitation of gpu")
 	}
 
@@ -391,34 +260,112 @@ func (d *device) DeviceGetPowerLimitConstraints() (PowerLimitConstraints, error)
 }
 
 func (d *device) DeviceGetClockInfo() (ClockInfo, error) {
-	var sm, mem C.uint
-
-	ret := C.ixmlDeviceGetClockInfo(d.handle, C.NVML_CLOCK_SM, &sm)
-	if ret != C.NVML_SUCCESS {
+	clockinfo, ret := d.GetClockInfo()
+	if ret != goixml.SUCCESS {
 		return ClockInfo{}, fmt.Errorf("Failed to get SM clock of gpu")
 	}
 
-	ret = C.ixmlDeviceGetClockInfo(d.handle, C.NVML_CLOCK_MEM, &mem)
-	if ret != C.NVML_SUCCESS {
-		return ClockInfo{}, fmt.Errorf("Failed to get MEM clock of gpu")
-	}
-
 	return ClockInfo{
-		Sm:  uint(sm),
-		Mem: uint(mem),
+		Sm:  uint(clockinfo.Sm),
+		Mem: uint(clockinfo.Mem),
 	}, nil
 }
 
 func (d *device) DeviceGetUtilization() (Utilization, error) {
-	var utilization C.nvmlUtilization_t
-
-	ret := C.ixmlDeviceGetUtilizationRates(d.handle, &utilization)
-	if ret != C.NVML_SUCCESS {
+	utilization, ret := d.GetUtilizationRates()
+	if ret != goixml.SUCCESS {
 		return Utilization{}, fmt.Errorf("Failed to get utilization rates of gpu")
 	}
 
 	return Utilization{
-		GPU: uint(utilization.gpu),
-		Mem: uint(utilization.memory),
+		GPU: uint(utilization.Gpu),
+		Mem: uint(utilization.Memory),
 	}, nil
+}
+
+func CheckDeviceError(health Health) []error {
+	errs := []error{}
+	if (health & Health(goixml.HealthSYSHUBError)) > 0 {
+		errs = append(errs, HealthSYSHUBError)
+	}
+	if (health & Health(goixml.HealthMCError)) > 0 {
+		errs = append(errs, HealthMCError)
+	}
+	if (health & Health(goixml.HealthOverTempError)) > 0 {
+		errs = append(errs, HealthOverTempError)
+	}
+	if (health & Health(goixml.HealthOverVoltageError)) > 0 {
+		errs = append(errs, HealthOverVoltageError)
+	}
+	if (health & Health(goixml.HealthECCError)) > 0 {
+		errs = append(errs, HealthECCError)
+	}
+	if (health & Health(goixml.HealthMemoryError)) > 0 {
+		errs = append(errs, HealthMemoryError)
+	}
+	if (health & Health(goixml.HealthPCIEError)) > 0 {
+		errs = append(errs, HealthPCIEError)
+	}
+
+	return errs
+}
+
+func (d *device) DeviceGetHealth() (Health, error) {
+	health, ret := d.GetHealth()
+	if ret != goixml.SUCCESS {
+		return Health(health), fmt.Errorf("Failed to get Health status of GPU: %v", ret)
+	}
+
+	return Health(health), nil
+}
+
+func (d *device) DeviceGetNumaNode() (bool, int, error) {
+	info, err := d.DeviceGetPciInfo()
+	if err != nil {
+		return false, 0, fmt.Errorf("error getting PCI Bus Info of device: %v", err)
+	}
+
+	busID := strings.ToLower(info.BusIdLegacy)
+	b, err := os.ReadFile(fmt.Sprintf("/sys/bus/pci/devices/%s/numa_node", busID))
+	if err != nil {
+		return false, 0, nil
+	}
+
+	node, err := strconv.Atoi(string(bytes.TrimSpace(b)))
+	if err != nil {
+		return false, 0, fmt.Errorf("eror parsing value for NUMA node: %v", err)
+	}
+
+	if node < 0 {
+		return false, 0, nil
+	}
+
+	return true, node, nil
+}
+
+func (d *device) DeviceGetTopology(device2 *Device) (goixml.GpuTopologyLevel, error) {
+	dev2, ok := (*device2).(*device)
+	if ok != true {
+		return goixml.GpuTopologyLevel(0), fmt.Errorf("unkown topology")
+	}
+
+	pathinfo, ret := d.GetTopology(dev2.Device)
+	if ret != goixml.SUCCESS {
+		return goixml.GpuTopologyLevel(0), fmt.Errorf("unkown topology %v", ret)
+	} else {
+		return pathinfo, nil
+	}
+}
+
+func (d *device) DeviceGetBoardPosition() (bool, int) {
+	pos, ret := d.GetBoardPosition()
+	if ret == goixml.SUCCESS {
+		return true, int(pos)
+	} else {
+		return false, 0
+	}
+}
+
+func (d *device) GetSelf() *device {
+	return d
 }
