@@ -21,9 +21,9 @@ metadata:
 spec:
   containers:
   - name: corex-example
-    image: corex:3.0.0
-    command: ["/usr/local/corex/bin/ixml"]
+    image: corex:4.2.0
+    command: ["/usr/local/corex/bin/ixsmi"]
     args: ["-l"]
     resources:
       limits:
-        iluvatar.ai/gpu: 1 # requesting 1 GPUs
+        iluvatar.com/gpu: 1 # requesting 1 GPUs

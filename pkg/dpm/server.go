@@ -23,9 +23,12 @@ import (
 	"path"
 	"time"
 
-	"github.com/golang/glog"
+	"gitee.com/deep-spark/ix-device-plugin/pkg/config"
+	"gitee.com/deep-spark/ix-device-plugin/pkg/gpuallocator"
+	"github.com/jochenvg/go-udev"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"k8s.io/klog/v2"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
@@ -46,21 +49,25 @@ type server struct {
 	grpcServer *grpc.Server
 }
 
-func newServer() *server {
-	return &server{
+func newServer(cfg *config.Config) *server {
+	ret := &server{
 		socket:        pluginapi.DevicePluginPath + iluvatarDevicePluginSocket,
 		kubeletSocket: pluginapi.KubeletSocket,
 		grpcServer:    nil,
 		iluvatarDevicePlugin: iluvatarDevicePlugin{
 			iluvatarDevice: iluvatarDevice{
-				devices:       newDevice(),
+				devSet:        gpuallocator.BuildDeviceSet(cfg),
 				stopCheckHeal: make(chan struct{}),
-				deviceCh:      make(chan *pluginapi.Device),
+				deviceCh:      make(chan *gpuallocator.Device),
 			},
 			name:     resourceName,
 			stopList: make(chan struct{}),
 		},
 	}
+
+	ret.devSet.ShowLayout()
+
+	return ret
 }
 
 func (s *server) start() error {
@@ -68,19 +75,19 @@ func (s *server) start() error {
 
 	err := s.createServer()
 	if err != nil {
-		glog.Errorf("Failed to create gprc server for '%s': %s", s.name, err)
+		klog.Errorf("Failed to create gprc server for '%s': %s", s.name, err)
 		s.cleanup()
 		return err
 	}
-	glog.Infof("Create grpc server '%s' on '%s'", s.name, s.socket)
+	klog.Infof("Create grpc server '%s' on '%s'", s.name, s.socket)
 
 	err = s.register()
 	if err != nil {
-		glog.Errorf("Failed to register device plugin: '%s'", s.name)
+		klog.Errorf("Failed to register device plugin: '%s'", s.name)
 		s.stop()
 		return err
 	}
-	glog.Infof("Register device plugin for '%s' with Kubelet", s.name)
+	klog.Infof("Register device plugin for '%s' with Kubelet", s.name)
 
 	go s.checkHealth()
 
@@ -91,7 +98,7 @@ func (s *server) stop() error {
 	if s == nil || s.grpcServer == nil {
 		return nil
 	}
-	glog.Infof("Stopping serve '%s' on %s", s.name, s.socket)
+	klog.Infof("Stopping serve '%s' on %s", s.name, s.socket)
 	s.grpcServer.Stop()
 	if err := os.Remove(s.socket); err != nil && !os.IsNotExist(err) {
 		return err
@@ -105,12 +112,7 @@ func (s *server) stop() error {
 }
 
 func (s *server) cleanup() {
-	close(s.stopList)
-	close(s.stopCheckHeal)
-
 	s.grpcServer = nil
-	s.stopList = nil
-	s.stopCheckHeal = nil
 }
 
 func (s *server) createServer() error {
@@ -129,19 +131,19 @@ func (s *server) createServer() error {
 		lastCrashTime := time.Now()
 		restartCount := 0
 		for {
-			glog.Infof("Starting GRPC server for '%s'", s.name)
+			klog.Infof("Starting GRPC server for '%s'", s.name)
 			err := s.grpcServer.Serve(sock)
 			if err == nil {
 				break
 			}
 
-			glog.Infof("GRPC server for '%s' crashed with error: %v", s.name, err)
+			klog.Infof("GRPC server for '%s' crashed with error: %v", s.name, err)
 
 			// restart if it has not been too often
 			// i.e. if server has crashed more than 5 times and it didn't last more than one hour each time
 			if restartCount > 5 {
 				// quit
-				glog.Fatalf("GRPC server for '%s' has repeatedly crashed recently. Quitting", s.name)
+				klog.Fatalf("GRPC server for '%s' has repeatedly crashed recently. Quitting", s.name)
 			}
 			timeSinceLastCrash := time.Since(lastCrashTime).Seconds()
 			lastCrashTime = time.Now()
@@ -177,6 +179,9 @@ func (s *server) register() error {
 		Version:      pluginapi.Version,
 		Endpoint:     path.Base(s.socket),
 		ResourceName: s.name,
+		Options: &pluginapi.DevicePluginOptions{
+			GetPreferredAllocationAvailable: true,
+		},
 	}
 
 	_, err = client.Register(context.Background(), reqt)
@@ -200,4 +205,8 @@ func (s *server) dial(unixSocketPath string, timeout time.Duration) (*grpc.Clien
 	}
 
 	return c, nil
+}
+
+func (s *server) updateUdev(dev *udev.Device) {
+	s.devSet.UpdateUdev(dev)
 }

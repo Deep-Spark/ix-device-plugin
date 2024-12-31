@@ -18,161 +18,69 @@ limitations under the License.
 package dpm
 
 import (
-	"strings"
+	"time"
 
+	"gitee.com/deep-spark/ix-device-plugin/pkg/gpuallocator"
 	"gitee.com/deep-spark/ix-device-plugin/pkg/ixml"
-	"github.com/golang/glog"
+	"k8s.io/klog/v2"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
 const deviceName string = "iluvatar"
 
-type device struct {
-	pluginapi.Device
-
-	name       string
-	minor      uint
-	minorslice []uint
-	uuid       string
-	uuidslice  []string
-	index      uint
-}
-
 type iluvatarDevice struct {
-	devices []*device
+	devSet *gpuallocator.DeviceSet
 
 	stopCheckHeal chan struct{}
 
-	deviceCh chan *pluginapi.Device
-}
-
-func getDeviceCount() (uint, error) {
-	count, err := ixml.GetDeviceCount()
-
-	return count, err
-}
-
-func buildDevice(index uint, d ixml.Device) *device {
-	var err error
-	dev := device{}
-
-	dev.name, err = d.DeviceGetName()
-	if err != nil {
-		glog.Errorf("Failed to get device name: %v", err)
-	}
-
-	dev.minor, err = d.DeviceGetMinorNumber()
-	if err != nil {
-		glog.Errorf("Failed to get device minor number: %v", err)
-	}
-
-	dev.minorslice, err = d.DeviceGetMinorSlice()
-	if err != nil {
-		glog.Errorf("Failed to get device minor number slice: %v", err)
-	}
-
-	dev.uuid, err = d.DeviceGetUUID()
-	if err != nil {
-		glog.Errorf("Failed to get device uuid: %v", err)
-	}
-
-	dev.uuidslice, err = d.DeviceGetUUIDSlice()
-	if err != nil {
-		glog.Errorf("Failed to get device uuid slice: %v", err)
-	}
-
-	dev.index = index
-	dev.ID = dev.uuid
-	dev.Health = pluginapi.Healthy
-
-	glog.Infof("Detected device: %d, name: %s, uuid: %s", dev.index, dev.name, dev.uuid)
-
-	return &dev
-}
-
-func newDevice() []*device {
-	var devs []*device
-
-	count, _ := getDeviceCount()
-
-	for i := uint(0); i < count; i++ {
-		dev, err := ixml.NewDeviceByIndex(i)
-		if err != nil {
-			glog.Errorf("Failed to get device-%d handle: %v", i, err)
-			continue
-		}
-
-		devs = append(devs, buildDevice(i, dev))
-	}
-
-	return devs
-}
-
-func (d *iluvatarDevice) cachedDevices() []*pluginapi.Device {
-	var devs []*pluginapi.Device
-
-	for _, d := range d.devices {
-		flag := false
-		for _, v := range d.minorslice {
-			if v < d.minor {
-				flag = true
-			}
-		}
-
-		if flag == false {
-			devs = append(devs, &d.Device)
-		}
-	}
-
-	return devs
-}
-
-func (d *iluvatarDevice) deviceExist(id string) bool {
-	for _, d := range d.cachedDevices() {
-		if d.ID == id {
-			return true
-		}
-	}
-	return false
+	deviceCh chan *gpuallocator.Device
 }
 
 func (d *iluvatarDevice) checkHealth() {
-	eventSet, _ := ixml.NewEventSet()
-	defer eventSet.EventSetFree()
+	klog.Infof("Start to GPU health checking.")
 
-	glog.Infof("Start to GPU health checking.")
-
-	for _, dev := range d.cachedDevices() {
-		err := eventSet.RegisterEventsForDevice(dev.ID, ixml.XidCriticalError)
-		if err != nil && strings.HasSuffix(err.Error(), "Not Supported") {
-			glog.Warningf("%s is too old to support healthchecking: %s. Marking it unhealthy.", dev.ID, err)
-			d.deviceCh <- dev
-
-			continue
-		}
-	}
+	d.devSet.Lk.Lock()
+	LastCount := d.devSet.Count
+	CurrentCount := d.devSet.Count
+	d.devSet.Lk.Unlock()
 
 	for {
 		select {
 		case <-d.stopCheckHeal:
-			glog.Info("Stoping GPU health checking")
+			klog.Info("Stoping GPU health checking")
 
 			return
 		default:
 		}
-
-		eventData, err := eventSet.WaitForEvent(5000)
-		if err != nil && eventData.Type != ixml.XidCriticalError {
-			continue
+		time.Sleep(5 * time.Second)
+		for _, dev := range d.devSet.Devices {
+			for _, c := range dev.Chips {
+				health, err := c.Operations.DeviceGetHealth()
+				herr := ixml.CheckDeviceError(health)
+				if err != nil {
+					klog.Warningf("Unhealthy: dev:%v   err:%v\n", c.Device.ID, err)
+					c.Health = pluginapi.Unhealthy
+				} else if len(herr) > 0 {
+					c.Health = pluginapi.Unhealthy
+					klog.Warningf("Unhealthy Error Collection: dev:%v\n", c.Device.ID)
+					for i, e := range herr {
+						klog.Warningf("  Error(%d): %v\n", i, e)
+					}
+				} else {
+					c.Health = pluginapi.Healthy
+				}
+			}
+			if dev.UpdateHelath() {
+				d.deviceCh <- dev
+			}
 		}
 
-		if eventData.Data == 31 || eventData.Data == 43 || eventData.Data == 45 {
-			continue
-		}
-
-		for _, dev := range d.cachedDevices() {
-			glog.Info("Error")
-			d.deviceCh <- dev
+		d.devSet.Lk.Lock()
+		CurrentCount = d.devSet.Count
+		d.devSet.Lk.Unlock()
+		if CurrentCount != LastCount {
+			d.deviceCh <- &gpuallocator.Device{Replicas: -1}
+			LastCount = CurrentCount
 		}
 	}
 }
