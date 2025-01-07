@@ -1,4 +1,4 @@
-# gitee.com/deep-spark/go-ixml v0.0.1 => ./../go-ixml
+# gitee.com/deep-spark/go-ixml v0.0.0-20241204061653-750032b2c1df
 ## explicit; go 1.21.6
 gitee.com/deep-spark/go-ixml/pkg/dl
 gitee.com/deep-spark/go-ixml/pkg/ixml
