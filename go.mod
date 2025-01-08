@@ -5,7 +5,7 @@ go 1.21.6
 toolchain go1.23.2
 
 require (
-	gitee.com/deep-spark/go-ixml v0.0.0-20241204061653-750032b2c1df
+	gitee.com/deep-spark/go-ixml v0.0.1
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/jochenvg/go-udev v0.0.0-20171110120927-d6b62d56d37b
 	github.com/urfave/cli/v2 v2.27.2
@@ -30,3 +30,5 @@ require (
 	google.golang.org/protobuf v1.26.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+replace gitee.com/deep-spark/go-ixml v0.0.1 => ./../go-ixml

@@ -49,8 +49,8 @@ ix-config: |-
           replicas: 4 
 
 metadata:
-  name: ix-config
-  namespace: kube-system
+name: ix-config
+namespace: kube-system
 ```
 ```shell
 kubectl create -f ix-config.yaml
