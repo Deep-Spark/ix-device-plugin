@@ -18,6 +18,7 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"os"
 
 	"gitee.com/deep-spark/ix-device-plugin/pkg/config"
@@ -27,6 +28,10 @@ import (
 )
 
 func main() {
+
+	logging := flag.NewFlagSet("logging", flag.ExitOnError)
+	klog.InitFlags(logging)
+
 	manager := dpm.NewManager()
 	c := cli.NewApp()
 	c.Action = func(ctx *cli.Context) error {
@@ -35,13 +40,25 @@ func main() {
 	c.Version = config.VERSION
 	c.Name = "Iluvatar Device Plugin"
 	c.Usage = "Iluvatar device plugin for Kubernetes"
-	c.Flags = []cli.Flag{&cli.BoolFlag{
-		Name:    "splitboard",
-		Usage:   "chip is not exposed and managed by device plugin, versa board is managed by device plugin:\n\t\t[false, true]",
-		EnvVars: []string{"SPLIT_BOARD"},
-	}}
+	c.Flags = []cli.Flag{
+		&cli.BoolFlag{
+			Name:    "splitboard",
+			Usage:   "chip is not exposed and managed by device plugin, versa board is managed by device plugin:\n\t\t[false, true]",
+			EnvVars: []string{"SPLIT_BOARD"},
+		},
+		&cli.BoolFlag{
+			Name:    "usevolcano",
+			Usage:   "use volcano scheduler:\n\t\t[false, true]",
+			EnvVars: []string{"USE_VOLCANO"},
+		},
+	}
 
 	defer klog.Flush()
+	logging.Set("log_dir", "/var/log/iluvatarcorex/ix-device-plugin")
+	logging.Set("log_file", "/var/log/iluvatarcorex/ix-device-plugin/ix-device-plugin.log")
+	logging.Set("logtostderr", "false")
+	flag.Parse()
+
 	err := c.Run(os.Args)
 	if err != nil {
 		klog.Error(err)

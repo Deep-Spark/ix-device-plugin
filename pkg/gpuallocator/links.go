@@ -57,6 +57,63 @@ const (
 	EighteenNVLINKLinks
 )
 
+func P2PLinkTypeToString(linkType P2PLinkType) string {
+	switch linkType {
+	case P2PLinkUnknown:
+		return "P2PLinkUnknown"
+	case P2PLinkCrossCPU:
+		return "P2PLinkCrossCPU"
+	case P2PLinkSameCPU:
+		return "P2PLinkSameCPU"
+	case P2PLinkHostBridge:
+		return "P2PLinkHostBridge"
+	case P2PLinkMultiSwitch:
+		return "P2PLinkMultiSwitch"
+	case P2PLinkSingleSwitch:
+		return "P2PLinkSingleSwitch"
+	case P2PLinkSameBoard:
+		return "P2PLinkSameBoard"
+	case SingleNVLINKLink:
+		return "SingleNVLINKLink"
+	case TwoNVLINKLinks:
+		return "TwoNVLINKLinks"
+	case ThreeNVLINKLinks:
+		return "ThreeNVLINKLinks"
+	case FourNVLINKLinks:
+		return "FourNVLINKLinks"
+	case FiveNVLINKLinks:
+		return "FiveNVLINKLinks"
+	case SixNVLINKLinks:
+		return "SixNVLINKLinks"
+	case SevenNVLINKLinks:
+		return "SevenNVLINKLinks"
+	case EightNVLINKLinks:
+		return "EightNVLINKLinks"
+	case NineNVLINKLinks:
+		return "NineNVLINKLinks"
+	case TenNVLINKLinks:
+		return "TenNVLINKLinks"
+	case ElevenNVLINKLinks:
+		return "ElevenNVLINKLinks"
+	case TwelveNVLINKLinks:
+		return "TwelveNVLINKLinks"
+	case ThirteenNVLINKLinks:
+		return "ThirteenNVLINKLinks"
+	case FourteenNVLINKLinks:
+		return "FourteenNVLINKLinks"
+	case FifteenNVLINKLinks:
+		return "FifteenNVLINKLinks"
+	case SixteenNVLINKLinks:
+		return "SixteenNVLINKLinks"
+	case SeventeenNVLINKLinks:
+		return "SeventeenNVLINKLinks"
+	case EighteenNVLINKLinks:
+		return "EighteenNVLINKLinks"
+	default:
+		return "Unknown P2PLinkType"
+	}
+}
+
 func GetP2PLink(dev1 ixml.Device, dev2 ixml.Device) P2PLinkType {
 	level, err := dev1.DeviceGetTopology(&dev2)
 	if err != nil {

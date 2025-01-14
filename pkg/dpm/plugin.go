@@ -140,7 +140,16 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 
 	var deviceIDs []string
 	var replicaIDs []string
+
 	for _, req := range reqs.ContainerRequests {
+
+		if p.kubeclient != nil {
+			volcanoDevices, isVolcano := p.UseVolcano(req.DevicesIDs)
+			if isVolcano {
+				req.DevicesIDs = volcanoDevices
+			}
+		}
+
 		DeviceSpecList := make(map[string]bool)
 
 		// if all of the device is allocated to device plugin, keep container /dev/iluvatar[devIdx] same with host
@@ -155,6 +164,7 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 				response.Devices = append(response.Devices, &d)
 			}
 			deviceIDs = req.DevicesIDs
+			replicaIDs = req.DevicesIDs
 		} else {
 			for _, id := range req.DevicesIDs {
 				if !p.devSet.DeviceExist(id) {

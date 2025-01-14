@@ -27,7 +27,8 @@ import (
 )
 
 type Flags struct {
-	SplitBoard bool `json:"splitboard"                yaml:"board"`
+	SplitBoard bool `json:"splitboard"                yaml:"splitboard"`
+	UseVolcano bool `json:"usevolcano"                 yaml:"usevolcano"`
 }
 
 type ReplicatedResources struct {
@@ -86,6 +87,8 @@ func (f *Flags) UpdateFromCLIFlags(c *cli.Context, flags []cli.Flag) {
 			switch n {
 			case "splitboard":
 				f.SplitBoard = c.Bool(n)
+			case "usevolcano":
+				f.UseVolcano = c.Bool(n)
 			default:
 				panic(fmt.Errorf("unsupported flag type for %v", n))
 			}

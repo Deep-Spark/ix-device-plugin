@@ -25,6 +25,7 @@ import (
 
 	"gitee.com/deep-spark/ix-device-plugin/pkg/config"
 	"gitee.com/deep-spark/ix-device-plugin/pkg/gpuallocator"
+	"gitee.com/deep-spark/ix-device-plugin/pkg/kube"
 	"github.com/jochenvg/go-udev"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -59,10 +60,21 @@ func newServer(cfg *config.Config) *server {
 				devSet:        gpuallocator.BuildDeviceSet(cfg),
 				stopCheckHeal: make(chan struct{}),
 				deviceCh:      make(chan *gpuallocator.Device),
+				updateCh:      make(chan struct{}),
+				kubeclient:    nil,
 			},
 			name:     ResourceName,
 			stopList: make(chan struct{}),
 		},
+	}
+
+	if cfg.Flags.UseVolcano {
+		var err error
+		ret.kubeclient, err = kube.NewKubeClient()
+		if err != nil {
+			klog.Errorf("Failed to create kube client: %s", err)
+			os.Exit(1)
+		}
 	}
 
 	ret.devSet.ShowLayout()
@@ -90,6 +102,13 @@ func (s *server) start() error {
 	klog.Infof("Register device plugin for '%s' with Kubelet", s.name)
 
 	go s.checkHealth()
+
+	if s.kubeclient != nil {
+		go s.updateDeviceinfo()
+		s.kubeclient.InitPodInformer()
+
+		s.notifyUpdate()
+	}
 
 	return nil
 }
