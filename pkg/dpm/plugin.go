@@ -30,7 +30,7 @@ import (
 )
 
 // resourceName is the name to identify iluvatar device plugin
-const resourceName string = "iluvatar.com/gpu"
+var ResourceName string = "iluvatar.com/gpu"
 
 // iluvatarDevicePlugin is the implementation of iluvatar device plugin
 type iluvatarDevicePlugin struct {
@@ -158,7 +158,7 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 		} else {
 			for _, id := range req.DevicesIDs {
 				if !p.devSet.DeviceExist(id) {
-					return nil, fmt.Errorf("Invalid allocation request for '%s': unknown device: %s", resourceName, id)
+					return nil, fmt.Errorf("Invalid allocation request for '%s': unknown device: %s", ResourceName, id)
 				}
 				prefix := gpuallocator.Alias(id).Prefix()
 				if _, ok := DeviceSpecList[prefix]; !ok {

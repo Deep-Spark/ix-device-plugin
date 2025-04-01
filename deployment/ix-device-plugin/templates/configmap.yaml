@@ -4,6 +4,9 @@ kind: ConfigMap
 data:
   ix-config: |-
     version: "{{ .Values.image.tag }}"
+{{- with .Values.resourceName }}
+    {{- toYaml . | nindent 4 }}
+{{- end }}
 {{- with .Values.ixConfig }}
     {{- toYaml . | nindent 4 }}
 {{- end }}

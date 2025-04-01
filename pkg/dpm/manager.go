@@ -55,6 +55,10 @@ func (m *Manager) Run(c *cli.Context, flags []cli.Flag) error {
 		return fmt.Errorf("unable to load config: %v", err)
 	}
 
+	if cfg.ResourceName != "" {
+		ResourceName = cfg.ResourceName
+	}
+
 	klog.Info("Loading IXML")
 	err = ixml.Init()
 	if err != nil {

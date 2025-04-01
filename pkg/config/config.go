@@ -44,9 +44,10 @@ type Sharing struct {
 
 // Config is a versioned struct used to hold configuration information.
 type Config struct {
-	Version string  `json:"version"             yaml:"version"`
-	Flags   Flags   `json:"flags,omitempty"     yaml:"flags,omitempty"`
-	Sharing Sharing `json:"sharing,omitempty"   yaml:"sharing,omitempty"`
+	Version      string  `json:"version"             yaml:"version"`
+	ResourceName string  `json:"resourceName"         yaml:"resourceName"`
+	Flags        Flags   `json:"flags,omitempty"     yaml:"flags,omitempty"`
+	Sharing      Sharing `json:"sharing,omitempty"   yaml:"sharing,omitempty"`
 }
 
 func parseConfigFrom(reader io.Reader) (*Config, error) {

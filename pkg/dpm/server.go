@@ -60,7 +60,7 @@ func newServer(cfg *config.Config) *server {
 				stopCheckHeal: make(chan struct{}),
 				deviceCh:      make(chan *gpuallocator.Device),
 			},
-			name:     resourceName,
+			name:     ResourceName,
 			stopList: make(chan struct{}),
 		},
 	}
