@@ -16,7 +16,7 @@
 GO := go
 DOCKER := docker
 
-VERSION := 4.2.0
+VERSION := 4.3.0
 TARGET := ix-device-plugin
 
 COREX_PATH := /usr/local/corex

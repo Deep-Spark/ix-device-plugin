@@ -62,6 +62,7 @@ func main() {
 	err := c.Run(os.Args)
 	if err != nil {
 		klog.Error(err)
+		klog.Flush()
 		os.Exit(1)
 	}
 }

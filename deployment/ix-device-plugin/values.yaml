@@ -5,7 +5,7 @@
 image:
   repository: ix-device-plugin
   pullPolicy: IfNotPresent
-  tag: "4.2.0"
+  tag: "4.3.0"
 
 imagePullSecrets: []
 

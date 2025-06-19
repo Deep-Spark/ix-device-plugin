@@ -57,7 +57,7 @@ apiVersion: v1
 kind: ConfigMap
 data:
   ix-config: |-
-    version: "4.2.0"
+    resourceName: "iluvatar.com/gpu"
     flags:
       splitboard: false
       usevolcano: true
@@ -95,7 +95,7 @@ spec:
               drop:
               - ALL
             privileged: true
-          image: "ix-device-plugin:4.2.0"
+          image: "ix-device-plugin:4.3.0"
           imagePullPolicy: IfNotPresent
           livenessProbe:
             exec:

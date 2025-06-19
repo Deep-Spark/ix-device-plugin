@@ -73,6 +73,7 @@ func newServer(cfg *config.Config) *server {
 		ret.kubeclient, err = kube.NewKubeClient()
 		if err != nil {
 			klog.Errorf("Failed to create kube client: %s", err)
+			klog.Flush()
 			os.Exit(1)
 		}
 	}

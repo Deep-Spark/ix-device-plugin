@@ -21,7 +21,7 @@ metadata:
 spec:
   containers:
   - name: corex-example
-    image: corex:4.2.0
+    image: corex:4.3.0
     command: ["/usr/local/corex/bin/ixsmi"]
     args: ["-l"]
     resources:

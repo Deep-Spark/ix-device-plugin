@@ -45,7 +45,6 @@ type Sharing struct {
 
 // Config is a versioned struct used to hold configuration information.
 type Config struct {
-	Version      string  `json:"version"             yaml:"version"`
 	ResourceName string  `json:"resourceName"         yaml:"resourceName"`
 	Flags        Flags   `json:"flags,omitempty"     yaml:"flags,omitempty"`
 	Sharing      Sharing `json:"sharing,omitempty"   yaml:"sharing,omitempty"`
@@ -64,14 +63,6 @@ func parseConfigFrom(reader io.Reader) (*Config, error) {
 	err = yaml.Unmarshal(configYaml, &cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal error: %v", err)
-	}
-
-	if cfg.Version == "" {
-		cfg.Version = VERSION
-	}
-
-	if cfg.Version != VERSION {
-		return nil, fmt.Errorf("unknown version: %v", cfg.Version)
 	}
 
 	return &cfg, nil

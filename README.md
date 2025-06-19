@@ -41,7 +41,6 @@ apiVersion: v1
 kind: ConfigMap
 data:
 ix-config: |-
-    version: "4.2.0"
     flags:
       splitboard: false
     sharing:
@@ -94,7 +93,7 @@ spec:
               drop:
               - ALL
             privileged: true
-          image: "ix-device-plugin:4.2.0"
+          image: "ix-device-plugin:4.3.0"
           imagePullPolicy: IfNotPresent
           livenessProbe:
             exec:
@@ -199,7 +198,6 @@ extended options in its configuration file.
 The extended options for splitting board can be seen below:
 
 ```yaml
-version: "4.2.0"
 flags:
     splitboard: false
 ```
@@ -210,7 +208,6 @@ kubelet will advertise multiple `iluvatar.com/gpu` resources to Kubernetes inste
 For example:
 
 ```yaml
-version: "4.2.0"
 flags:
     splitboard: true
 ```
@@ -236,7 +233,6 @@ extended options in its configuration file.
 The extended options for sharing using time-slicing can be seen below:
 
 ```yaml
-version: "4.2.0"
 sharing:
     timeSlicing:
         replicas: <num-replicas>
@@ -248,7 +244,6 @@ That is, `sharing.timeSlicing.replicas`, a number of replicas can now be specifi
 For example:
 
 ```yaml
-version: "4.2.0"
 flags:
     splitboard: false
 sharing:
