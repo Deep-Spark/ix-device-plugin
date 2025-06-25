@@ -49,10 +49,15 @@ func NewManager() *Manager {
 
 // Run starts the Manager
 func (m *Manager) Run(c *cli.Context, flags []cli.Flag) error {
+	klog.Infof("Using ix-device-plugin version: %s", config.VERSION)
 	klog.Info("Loading configuration.")
 	cfg, err := config.LoadConfig(c, flags)
 	if err != nil {
 		return fmt.Errorf("unable to load config: %v", err)
+	}
+
+	if cfg.ResourceName != "" {
+		ResourceName = cfg.ResourceName
 	}
 
 	klog.Info("Loading IXML")
