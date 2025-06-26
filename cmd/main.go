@@ -27,6 +27,9 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const LogDir = "/var/log/iluvatarcorex/ix-device-plugin"
+const LogPath = "/var/log/iluvatarcorex/ix-device-plugin/ix-device-plugin.log"
+
 func main() {
 
 	logging := flag.NewFlagSet("logging", flag.ExitOnError)
@@ -54,12 +57,18 @@ func main() {
 	}
 
 	defer klog.Flush()
-	logging.Set("log_dir", "/var/log/iluvatarcorex/ix-device-plugin")
-	logging.Set("log_file", "/var/log/iluvatarcorex/ix-device-plugin/ix-device-plugin.log")
+
+	err := os.MkdirAll(LogDir, 0755)
+	if err != nil {
+		klog.Errorf("unable to create directory %v: %v", LogDir, err)
+	}
+
+	logging.Set("log_dir", LogDir)
+	logging.Set("log_file", LogPath)
 	logging.Set("logtostderr", "false")
 	flag.Parse()
 
-	err := c.Run(os.Args)
+	err = c.Run(os.Args)
 	if err != nil {
 		klog.Error(err)
 		klog.Flush()

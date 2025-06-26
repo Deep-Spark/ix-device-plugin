@@ -84,7 +84,7 @@ spec:
             - name: ixc
               mountPath: /ixconfig
             - name: ix-device-plugin-log
-              mountPath: /var/log/iluvatarcorex/ix-device-plugin
+              mountPath: /var/log/iluvatarcorex/
       volumes:
         - hostPath:
             path: /var/lib/kubelet/device-plugins
@@ -106,5 +106,5 @@ spec:
               name: ix-config
         - name: ix-device-plugin-log
           hostPath:
-            path: /var/log/iluvatarcorex/ix-device-plugin
+            path: /var/log/iluvatarcorex
             type: Directory
