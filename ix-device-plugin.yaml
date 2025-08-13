@@ -96,9 +96,6 @@ spec:
             path: /sys
           name: sys
         - hostPath:
-            path: /etc/udev/
-          name: udev-etc
-        - hostPath:
             path: /dev
           name: dev
         - name: ixc

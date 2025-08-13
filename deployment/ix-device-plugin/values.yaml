@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 image:
-  repository: ix-device-plugin
+  repository: registry.iluvatar.com.cn:10443/k8s/ix-device-plugin
   pullPolicy: IfNotPresent
   tag: "4.3.0"
 
@@ -54,9 +54,6 @@ volumes:
  - name: sys
    hostPath:
      path: /sys
- - name: udev-etc
-   hostPath:
-     path: /etc/udev/
  - name: dev
    hostPath:
      path: /dev 
