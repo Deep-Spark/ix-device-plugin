@@ -30,6 +30,22 @@ make all
 ```
 This will build the ix-device-plugin binary and ix-device-plugin image, see logging for more details.
 
+## Deploying the IX device plugin
+
+### Deploying the IX device plugin via Yaml
+
+```shell
+kubectl apply -f ix-device-plugin.yaml
+```
+
+### Deploying the IX device plugin via Helm
+
+```shell
+cd deployment
+helm package ix-device-plugin --version 4.3.0
+helm install ix-device-plugin ix-device-plugin-4.3.0.tgz
+```
+
 ## Configuring the IX device plugin
 
 The IX device plugin has a number of options that can be configured for it.
@@ -132,9 +148,6 @@ spec:
         - hostPath:
             path: /sys
           name: sys
-        - hostPath:
-            path: /etc/udev/
-          name: udev-etc
         - hostPath:
             path: /dev
           name: dev
