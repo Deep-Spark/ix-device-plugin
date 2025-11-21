@@ -40,7 +40,7 @@ func (ki *KubeClient) WriteDevicelisttoCM(devices []string) error {
 	}
 
 	for i := 0; i < RetryUpdateCount; i++ {
-		if _, err = ki.Client.CoreV1().ConfigMaps(DeviceInfoCMNameSpace).Patch(context.Background(),
+		if _, err = ki.Client.CoreV1().ConfigMaps(ki.Namespace).Patch(context.Background(),
 			ki.DeviceInfoName, types.StrategicMergePatchType, configmapUpdateData, metav1.PatchOptions{}); err == nil {
 			return nil
 		}
@@ -82,7 +82,7 @@ func (ki *KubeClient) WriteDeviceInfoDataIntoCM(devices []string, deviceinfo map
 	deviceInfoCM := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ki.DeviceInfoName,
-			Namespace: DeviceInfoCMNameSpace,
+			Namespace: ki.Namespace,
 		},
 	}
 

@@ -21,10 +21,51 @@ data:
     flags:
       splitboard: false
       usevolcano: false
+      reset_gpu: false
 
 metadata:
   name: ix-config
   namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: iluvatar-device-plugin-sa
+  namespace: kube-system
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: iluvatar-device-plugin-cluster-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "update", "watch", "patch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["nodes/status"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "create", "update", "list", "watch", "patch"]
+  - apiGroups: [ "" ]
+    resources: [ "events" ]
+    verbs: [ "create" ]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: iluvatar-device-plugin-cluster-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: iluvatar-device-plugin-sa
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: iluvatar-device-plugin-cluster-role
+  apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -47,6 +88,7 @@ spec:
       priorityClassName: "system-node-critical"
       securityContext:
         null
+      serviceAccountName: iluvatar-device-plugin-sa
       containers:
         - name: iluvatar-device-plugin
           securityContext:
@@ -54,7 +96,7 @@ spec:
               drop:
               - ALL
             privileged: true
-          image: "ix-device-plugin:4.3.0"
+          image: "ix-device-plugin:4.4.0"
           imagePullPolicy: IfNotPresent
           livenessProbe:
             exec:
@@ -85,6 +127,15 @@ spec:
               mountPath: /ixconfig
             - name: ix-device-plugin-log
               mountPath: /var/log/iluvatarcorex/
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
       volumes:
         - hostPath:
             path: /var/lib/kubelet/device-plugins
@@ -96,6 +147,9 @@ spec:
             path: /sys
           name: sys
         - hostPath:
+            path: /etc/udev/
+          name: udev-etc
+        - hostPath:
             path: /dev
           name: dev
         - name: ixc
@@ -104,4 +158,4 @@ spec:
         - name: ix-device-plugin-log
           hostPath:
             path: /var/log/iluvatarcorex
-            type: Directory
+            type: DirectoryOrCreate

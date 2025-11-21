@@ -3,13 +3,15 @@ package kube
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubelet/pkg/apis/podresources/v1alpha1"
-	"k8s.io/kubernetes/pkg/kubelet/apis/podresources"
 )
 
 const (
@@ -21,14 +23,30 @@ const (
 // start starts the gRPC server, registers the pod resource with the Kubelet
 func (pr *PodResource) start() error {
 	pr.stop()
-	var err error
-	if pr.client, pr.conn, err = podresources.GetV1alpha1Client("unix://"+socketPath, callTimeout,
-		defaultPodResourcesMaxSize); err != nil {
-		klog.Errorf("get pod resource client failed, %v", err)
+	conn, err := dialUnix(socketPath, callTimeout)
+	if err != nil {
 		return err
 	}
-	// klog.Infof("pod resource client init success.")
+	pr.conn = conn
+	pr.client = v1alpha1.NewPodResourcesListerClient(conn)
 	return nil
+}
+
+func dialUnix(path string, timeout time.Duration) (*grpc.ClientConn, error) {
+	d := func(ctx context.Context, addr string) (net.Conn, error) {
+		var nd net.Dialer
+		return nd.DialContext(ctx, "unix", path)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return grpc.DialContext(
+		ctx,
+		"unix://"+path,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(d),
+		grpc.WithBlock(),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(defaultPodResourcesMaxSize)),
+	)
 }
 
 // stop the connection

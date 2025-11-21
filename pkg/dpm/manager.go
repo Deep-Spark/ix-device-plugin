@@ -70,6 +70,29 @@ func (m *Manager) Run(c *cli.Context, flags []cli.Flag) error {
 		klog.Info("Shutdown of IXML returned:", ixml.Shutdown())
 	}()
 
+	ixmlVersion, err := ixml.GetIxmlVersion()
+	if err != nil {
+		klog.Errorf("Failed to get IXML version: %v", err)
+		return fmt.Errorf("%v", err)
+	}
+	klog.Infof("IXML version = %s\n", ixmlVersion)
+
+	driverVersion, err := ixml.GetDriverVersion()
+	if err != nil {
+		klog.Errorf("Failed to get Driver version: %v", err)
+		return fmt.Errorf("%v", err)
+	} else {
+		klog.Infof("Driver version = %s\n", driverVersion)
+	}
+
+	cudaVersion, err := ixml.GetCudaVersion()
+	if err != nil {
+		klog.Errorf("Failed to get CUDA version: %v", err)
+		return fmt.Errorf("%v", err)
+	} else {
+		klog.Infof("CUDA version = %s\n", cudaVersion)
+	}
+
 	klog.Info("Starting FS watcher.")
 	m.fsWatcher, err = newFSWatcher(pluginapi.DevicePluginPath)
 	if err != nil {

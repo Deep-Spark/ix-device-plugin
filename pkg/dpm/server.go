@@ -57,11 +57,12 @@ func newServer(cfg *config.Config) *server {
 		grpcServer:    nil,
 		iluvatarDevicePlugin: iluvatarDevicePlugin{
 			iluvatarDevice: iluvatarDevice{
-				devSet:        gpuallocator.BuildDeviceSet(cfg),
-				stopCheckHeal: make(chan struct{}),
-				deviceCh:      make(chan *gpuallocator.Device),
-				updateCh:      make(chan struct{}),
-				kubeclient:    nil,
+				devSet:          gpuallocator.BuildDeviceSet(cfg),
+				stopCheckHeal:   make(chan struct{}),
+				deviceCh:        make(chan *gpuallocator.Device),
+				volcanoUpdateCh: make(chan struct{}),
+				kubeclient:      nil,
+				resetClient:     nil,
 			},
 			name:     ResourceName,
 			stopList: make(chan struct{}),
@@ -76,6 +77,14 @@ func newServer(cfg *config.Config) *server {
 			klog.Flush()
 			os.Exit(1)
 		}
+	}
+
+	klog.Infof("Config ResetGpu flag: %v", cfg.Flags.ResetGpu)
+	if cfg.Flags.ResetGpu {
+		klog.Info("Creating resetClient because ResetGpu is enabled")
+		ret.resetClient = kube.NewResetClient()
+	} else {
+		klog.Info("ResetClient not created because ResetGpu is disabled")
 	}
 
 	ret.devSet.ShowLayout()
@@ -102,13 +111,17 @@ func (s *server) start() error {
 	}
 	klog.Infof("Register device plugin for '%s' with Kubelet", s.name)
 
+	if s.resetClient != nil {
+		go s.resetClient.InitCmInformer()
+	}
+
 	go s.checkHealth()
 
 	if s.kubeclient != nil {
 		go s.updateDeviceinfo()
 		s.kubeclient.InitPodInformer()
 
-		s.notifyUpdate()
+		s.notifyVolcanoUpdate()
 	}
 
 	return nil

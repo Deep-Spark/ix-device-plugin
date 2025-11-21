@@ -3,12 +3,10 @@
 
 package ixml
 
+import "unsafe"
+
 type Device struct {
 	Handle *_Ctype_struct_nvmlDevice_st
-}
-
-type EventSet struct {
-	Handle *_Ctype_struct_nvmlEventSet_st
 }
 
 type Memory struct {
@@ -67,6 +65,30 @@ type GpmSupport struct {
 	IsSupportedDevice uint32
 }
 
+type BridgeChipInfo struct {
+	Type      uint32
+	FwVersion uint32
+}
+
+type BridgeChipHierarchy struct {
+	BridgeCount    uint8
+	BridgeChipInfo [128]BridgeChipInfo
+}
+
+const sizeofValue = unsafe.Sizeof([8]byte{})
+
+type Value [sizeofValue]byte
+
+type Sample struct {
+	TimeStamp   uint64
+	SampleValue [8]byte
+}
+
+type ViolationTime struct {
+	ReferenceTime uint64
+	ViolationTime uint64
+}
+
 type PciInfo struct {
 	BusIdLegacy    [16]int8
 	Domain         uint32
@@ -75,4 +97,16 @@ type PciInfo struct {
 	PciDeviceId    uint32
 	PciSubSystemId uint32
 	BusId          [32]int8
+}
+
+type nvmlEventSet struct {
+	Handle *_Ctype_struct_nvmlEventSet_st
+}
+
+type nvmlEventData struct {
+	Device            Device
+	EventType         uint64
+	EventData         uint64
+	GpuInstanceId     uint32
+	ComputeInstanceId uint32
 }

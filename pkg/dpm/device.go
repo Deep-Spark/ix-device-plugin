@@ -38,16 +38,42 @@ type iluvatarDevice struct {
 
 	stopCheckHeal chan struct{}
 
+	// kubelet device update notification
 	deviceCh chan *gpuallocator.Device
 
-	updateCh chan struct{}
+	// volcano pod annotation and cm update notification
+	volcanoUpdateCh chan struct{}
 
 	kubeclient *kube.KubeClient
+	// reset gpu config
+	resetClient *kube.ResetClient
 }
 
-func (d *iluvatarDevice) notifyUpdate() {
+func (d *iluvatarDevice) resetGpusAndDeviceSet(indexs []int) {
+	if d.devSet.Cfg.Flags.ResetGpu && d.resetClient != nil {
+		err := d.resetClient.ResetGpus(indexs)
+		if err != nil {
+			klog.Errorf("Reset gpus failed: %v", err)
+		} else {
+			klog.Infof("Reset gpus success")
+		}
+		d.devSet = gpuallocator.BuildDeviceSet(d.devSet.Cfg)
+		d.notifyNodeResourceUpdate(nil)
+	}
+}
+
+func (d *iluvatarDevice) notifyVolcanoUpdate() {
 	if d.kubeclient != nil {
-		d.updateCh <- struct{}{}
+		d.volcanoUpdateCh <- struct{}{}
+	}
+}
+
+func (d *iluvatarDevice) notifyNodeResourceUpdate(dev *gpuallocator.Device) {
+	if dev == nil {
+		// full update
+		d.deviceCh <- &gpuallocator.Device{Replicas: -1}
+	} else {
+		d.deviceCh <- dev
 	}
 }
 
@@ -85,9 +111,9 @@ func (d *iluvatarDevice) checkHealth() {
 					c.Health = pluginapi.Healthy
 				}
 			}
-			if dev.UpdateHelath() {
-				d.deviceCh <- dev
-				d.notifyUpdate()
+			if dev.UpdateHealth() {
+				d.notifyNodeResourceUpdate(dev)
+				d.notifyVolcanoUpdate()
 			}
 		}
 
@@ -95,8 +121,8 @@ func (d *iluvatarDevice) checkHealth() {
 		CurrentCount = d.devSet.Count
 		d.devSet.Lk.Unlock()
 		if CurrentCount != LastCount {
-			d.deviceCh <- &gpuallocator.Device{Replicas: -1}
-			d.notifyUpdate()
+			d.notifyNodeResourceUpdate(nil)
+			d.notifyVolcanoUpdate()
 			LastCount = CurrentCount
 		}
 	}
@@ -116,7 +142,7 @@ func (d *iluvatarDevice) updateDeviceinfo() {
 			return
 		case <-ticker.C:
 			d.updatingDevicelist(false)
-		case <-d.updateCh:
+		case <-d.volcanoUpdateCh:
 			d.updatingDeviceinfo(true)
 		}
 	}

@@ -19,6 +19,7 @@ package dpm
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -140,7 +141,7 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 
 	var deviceIDs []string
 	var replicaIDs []string
-
+	var indexes []int
 	for _, req := range reqs.ContainerRequests {
 
 		if p.kubeclient != nil {
@@ -152,17 +153,28 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 
 		DeviceSpecList := make(map[string]bool)
 
-		// if all of the device is allocated to device plugin, keep container /dev/iluvatar[devIdx] same with host
+		// if all of the device is allocated to device plugin, keep container /dev/iluvatar[devMinor] same order with host
 		if p.devSet.Replicas == 0 && len(req.DevicesIDs) == len(p.devSet.Devices) {
-			totalDevices := p.devSet.GetTotalCount()
-			for i := 0; i < totalDevices; i++ {
+			var devMinors []int
+			for _, device := range p.devSet.Devices {
+				for _, chip := range device.Chips {
+					devMinors = append(devMinors, int(chip.Minor))
+				}
+			}
+			sort.Ints(devMinors)
+
+			// generate device spec list by minor numbers
+			for i, minor := range devMinors {
+				klog.Infof("minor: %d, index: %d", minor, i)
+				klog.Infof("HostPath: %s, ContainerPath: %s", config.HostPathPrefix+config.DeviceName+strconv.Itoa(minor), config.ContainerPathPrefix+config.DeviceName+strconv.Itoa(i))
 				d := pluginapi.DeviceSpec{}
-				// Expose the device node for iluvatar pod.
-				d.HostPath = config.HostPathPrefix + config.DeviceName + strconv.Itoa(i)
-				d.ContainerPath = config.ContainerPathPrefix + config.DeviceName + strconv.Itoa(i)
+				d.HostPath = config.HostPathPrefix + config.DeviceName + strconv.Itoa(minor)
+				d.ContainerPath = config.ContainerPathPrefix + config.DeviceName + strconv.Itoa(i) // start from 0 in container
 				d.Permissions = "rw"
 				response.Devices = append(response.Devices, &d)
+				indexes = append(indexes, i)
 			}
+
 			deviceIDs = req.DevicesIDs
 			replicaIDs = req.DevicesIDs
 		} else {
@@ -175,6 +187,7 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 					DeviceSpecList[prefix] = true
 					response.Devices = append(response.Devices, p.devSet.Devices[prefix].GenerateSpecList()...)
 					deviceIDs = append(deviceIDs, p.devSet.Devices[prefix].GenerateIDS()...)
+					indexes = append(indexes, p.devSet.Devices[prefix].GenerateIndexs()...)
 				}
 				replicaIDs = append(replicaIDs, id)
 			}
@@ -182,11 +195,12 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 		responses.ContainerResponses = append(responses.ContainerResponses, response)
 	}
 
-	response.Envs = p.allocateEnvs("ILUVATAR_COREX_VISIBLE_DEVICES", deviceIDs)
-	response.Envs["ILUVATAR_COREX_REPLICA_DEVICES"] = strings.Join(replicaIDs, ",")
+	response.Envs = p.allocateEnvs("IX_VISIBLE_DEVICES", deviceIDs)
+	response.Envs["IX_REPLICA_DEVICES"] = strings.Join(replicaIDs, ",")
 
 	klog.Infof("Allocate response: %v", responses)
 
+	p.resetGpusAndDeviceSet(indexes)
 	return responses, nil
 }
 

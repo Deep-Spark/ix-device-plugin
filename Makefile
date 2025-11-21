@@ -16,7 +16,7 @@
 GO := go
 DOCKER := docker
 
-VERSION := 4.3.0
+VERSION := 4.4.0
 TARGET := ix-device-plugin
 
 COREX_PATH := /usr/local/corex
@@ -37,7 +37,7 @@ IMG_NAME := ix-device-plugin:$(VERSION)
 all: image
 
 .PHONY: plugin
-plugin:
+plugin: vendor
 	CGO_CFLAGS=-I$(COREX_PATH)/include \
 	$(GO) \
 	build \
@@ -48,13 +48,22 @@ plugin:
 .PHONY: image
 image: plugin
 	mkdir -p $(BUILD_DIR)/lib64
+	mkdir -p $(BUILD_DIR)/bin
 	$(foreach lib, $(DEPENDS), cp -P $(COREX_PATH)/lib64/$(lib) $(BUILD_DIR)/lib64;)
+	cp $(COREX_PATH)/bin/ixsmi $(BUILD_DIR)/bin/
 	$(DOCKER) build \
 		-t $(IMG_NAME) \
 		--build-arg EXEC=$(BUILD_DIR)/$(TARGET) \
 		--build-arg LIB_DIR=$(BUILD_DIR)/lib64 \
+		--build-arg BIN_DIR=$(BUILD_DIR)/bin \
 		-f docker/Dockerfile \
 	        .
+
+.PHONY: vendor
+vendor:
+	$(GO) mod tidy
+	$(GO) mod vendor
+	$(GO) mod verify
 
 .PHONY: clean
 clean:

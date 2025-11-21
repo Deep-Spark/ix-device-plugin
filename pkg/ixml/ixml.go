@@ -131,6 +131,10 @@ func GetCudaVersion() (string, error) {
 	return getCudaVersion()
 }
 
+func GetIxmlVersion() (string, error) {
+	return getIxmlVersion()
+}
+
 // NewDeviceByIndex creates a device instance by index.
 func NewDeviceByIndex(index uint) (Device, error) {
 	dev, err := getDeviceByIndex(index)

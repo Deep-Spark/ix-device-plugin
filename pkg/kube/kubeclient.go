@@ -39,6 +39,7 @@ type KubeClient struct {
 	NeedRefresh    bool
 	PodInformer    cache.SharedIndexInformer
 	Queue          workqueue.RateLimitingInterface
+	Namespace      string
 }
 
 func NewKubeClient() (*KubeClient, error) {
@@ -56,7 +57,12 @@ func NewKubeClient() (*KubeClient, error) {
 
 	nodeName, err := GetNodeNameFromEnv()
 	if err != nil {
+		klog.Errorf("Failed to get node name from env: %v", err.Error())
 		return nil, err
+	}
+	namespace := os.Getenv("POD_NAMESPACE")
+	if namespace == "" {
+		namespace = DefaultNameSpace
 	}
 
 	return &KubeClient{
@@ -65,6 +71,7 @@ func NewKubeClient() (*KubeClient, error) {
 		DeviceInfoName: DeviceInfoCMNamePrefix + nodeName,
 		Queue:          workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		NeedRefresh:    false,
+		Namespace:      namespace,
 	}, nil
 }
 
@@ -130,6 +137,7 @@ func (ki *KubeClient) createOrUpdateDeviceCM(cm *v1.ConfigMap) error {
 		if _, err := ki.CreateConfigMap(cm); err != nil {
 			return fmt.Errorf("unable to create configmap, %v", err)
 		}
+		klog.Infof("Created ConfigMap %s/%s successfully", cm.Namespace, cm.Name)
 		return nil
 	} else {
 		return err

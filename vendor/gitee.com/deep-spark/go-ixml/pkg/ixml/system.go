@@ -27,6 +27,12 @@ func SystemGetDriverVersion() (string, Return) {
 	return removeBytesSpaces(version), ret
 }
 
+func SystemGetNVMLVersion() (string, Return) {
+	Version := make([]byte, SYSTEM_NVML_VERSION_BUFFER_SIZE)
+	ret := nvmlSystemGetNVMLVersion(&Version[0], SYSTEM_NVML_VERSION_BUFFER_SIZE)
+	return string(Version[:clen(Version)]), ret
+}
+
 func SystemGetCudaDriverVersion() (string, Return) {
 	var CudaDriverVersion int32
 	ret := nvmlSystemGetCudaDriverVersion(&CudaDriverVersion)

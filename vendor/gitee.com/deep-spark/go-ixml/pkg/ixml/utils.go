@@ -18,6 +18,7 @@ limitations under the License.
 package ixml
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -41,5 +42,6 @@ func getPidName(pid uint32) string {
 	if err != nil {
 		return ""
 	}
+	data = bytes.ReplaceAll(data, []byte{0}, []byte{' '})
 	return strings.TrimSuffix(string(data), "\x00")
 }
