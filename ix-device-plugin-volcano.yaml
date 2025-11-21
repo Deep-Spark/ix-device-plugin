@@ -61,6 +61,7 @@ data:
     flags:
       splitboard: false
       usevolcano: true
+      reset_gpu: false
 
 metadata:
   name: ix-config
@@ -95,7 +96,7 @@ spec:
               drop:
               - ALL
             privileged: true
-          image: "ix-device-plugin:4.3.0"
+          image: "ix-device-plugin:4.4.0"
           imagePullPolicy: IfNotPresent
           livenessProbe:
             exec:
@@ -133,6 +134,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
       volumes:
         - hostPath:
             path: /var/lib/kubelet/pod-resources/
@@ -158,4 +163,4 @@ spec:
         - name: ix-device-plugin-log
           hostPath:
             path: /var/log/iluvatarcorex
-            type: Directory
+            type: DirectoryOrCreate

@@ -19,10 +19,13 @@ RUN mkdir /usr/local/corex
 
 ARG EXEC
 ARG LIB_DIR
+ARG BIN_DIR
 COPY $EXEC /usr/bin
 COPY $LIB_DIR /usr/local/corex/lib64
+COPY $BIN_DIR /usr/local/corex/bin
 
 ENV LD_LIBRARY_PATH="/usr/local/corex/lib64"
+ENV PATH="/usr/local/corex/bin:${PATH}"
 
 LABEL io.k8s.display-name="IX Device Plugin"
 LABEL name="IX Device Plugin"

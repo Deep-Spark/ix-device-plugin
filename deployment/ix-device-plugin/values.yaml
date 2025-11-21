@@ -3,9 +3,9 @@
 # Declare variables to be passed into your templates.
 
 image:
-  repository: registry.iluvatar.com.cn:10443/k8s/ix-device-plugin
+  repository: ix-device-plugin
   pullPolicy: IfNotPresent
-  tag: "4.3.0"
+  tag: "4.4.0"
 
 imagePullSecrets: []
 
@@ -45,32 +45,48 @@ startupProbe:
   periodSeconds: 5
 
 volumes:
- - name: device-plugin
-   hostPath:
-     path: /var/lib/kubelet/device-plugins
- - name: udev-ctl
-   hostPath:
-     path: /run/udev
- - name: sys
-   hostPath:
-     path: /sys
- - name: dev
-   hostPath:
-     path: /dev 
-
+  - name: device-plugin
+    hostPath:
+      path: /var/lib/kubelet/device-plugins
+  - name: udev-ctl
+    hostPath:
+      path: /run/udev
+  - name: sys
+    hostPath:
+      path: /sys
+  - name: udev-etc
+    hostPath:
+      path: /etc/udev/
+  - name: dev
+    hostPath:
+      path: /dev
+  - name: ix-device-plugin-log
+    hostPath:
+      path: /var/log/iluvatarcorex
+      type: Directory 
+  - name: pod-resources
+    hostPath:
+      path: /var/lib/kubelet/pod-resources/
+  
 volumeMounts:
- - name: device-plugin
-   mountPath: /var/lib/kubelet/device-plugins
- - name: udev-ctl
-   mountPath: /run/udev
-   readOnly: true
- - name: sys
-   mountPath: /sys
-   readOnly: true
- - name: dev
-   mountPath: /dev
-
+  - name: device-plugin
+    mountPath: /var/lib/kubelet/device-plugins
+  - name: udev-ctl
+    mountPath: /run/udev
+    readOnly: true
+  - name: sys
+    mountPath: /sys
+    readOnly: true
+  - name: dev
+    mountPath: /dev
+  - name: ix-device-plugin-log
+    mountPath: /var/log/iluvatarcorex/
+  - name: pod-resources
+    mountPath: /var/lib/kubelet/pod-resources
+  
 cfgName: ix-config
 ixConfig:
   flags:
-    splitboard: true
+    splitboard: false
+    usevolcano: false
+    reset_gpu: false

@@ -19,7 +19,7 @@ package kube
 import "regexp"
 
 const (
-	DeviceInfoCMNameSpace  = "kube-system"
+	DefaultNameSpace       = "kube-system"
 	DeviceInfoCMNamePrefix = "ix-device-info-cm-"
 	DeviceInfoCMDataKey    = "DeviceInfoCfg"
 	DeviceListCMDataKey    = "DeviceListCfg"
@@ -39,6 +39,9 @@ const (
 	GetPodFromInformerTime = 3
 
 	CommaSepDev = ","
+
+	ResetConfigName  = "ix-gpu-reset-"
+	DevicePluginName = "ix-device-plugin"
 )
 
 var (

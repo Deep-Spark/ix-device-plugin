@@ -31,9 +31,7 @@ const LogDir = "/var/log/iluvatarcorex/ix-device-plugin"
 const LogPath = "/var/log/iluvatarcorex/ix-device-plugin/ix-device-plugin.log"
 
 func main() {
-
-	logging := flag.NewFlagSet("logging", flag.ExitOnError)
-	klog.InitFlags(logging)
+	klog.InitFlags(nil)
 
 	manager := dpm.NewManager()
 	c := cli.NewApp()
@@ -54,6 +52,11 @@ func main() {
 			Usage:   "use volcano scheduler:\n\t\t[false, true]",
 			EnvVars: []string{"USE_VOLCANO"},
 		},
+		&cli.BoolFlag{
+			Name:    "reset_gpu",
+			Usage:   "enable reset gpu mode:\n\t\t[false, true]",
+			EnvVars: []string{"RESET_GPU"},
+		},
 	}
 
 	defer klog.Flush()
@@ -63,10 +66,10 @@ func main() {
 		klog.Errorf("unable to create directory %v: %v", LogDir, err)
 	}
 
-	logging.Set("log_dir", LogDir)
-	logging.Set("log_file", LogPath)
-	logging.Set("logtostderr", "false")
-	flag.Parse()
+	flag.Set("logtostderr", "false")
+	flag.Set("alsologtostderr", "true")
+	flag.Set("stderrthreshold", "INFO")
+	flag.Set("log_file", LogPath)
 
 	err = c.Run(os.Args)
 	if err != nil {

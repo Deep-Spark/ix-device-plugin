@@ -1,6 +1,6 @@
 /*
 Copyright (c) 2024, Shanghai Iluvatar CoreX Semiconductor Co., Ltd.
-All Rights Reserved.
+Copyright (c) NVIDIA CORPORATION. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,8 @@ import (
 
 type Flags struct {
 	SplitBoard bool `json:"splitboard"                yaml:"splitboard"`
-	UseVolcano bool `json:"usevolcano"                 yaml:"usevolcano"`
+	UseVolcano bool `json:"usevolcano"                yaml:"usevolcano"`
+	ResetGpu   bool `json:"reset_gpu"                 yaml:"reset_gpu"`
 }
 
 type ReplicatedResources struct {
@@ -80,6 +81,8 @@ func (f *Flags) UpdateFromCLIFlags(c *cli.Context, flags []cli.Flag) {
 				f.SplitBoard = c.Bool(n)
 			case "usevolcano":
 				f.UseVolcano = c.Bool(n)
+			case "reset_gpu":
+				f.ResetGpu = c.Bool(n)
 			default:
 				panic(fmt.Errorf("unsupported flag type for %v", n))
 			}

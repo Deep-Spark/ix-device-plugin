@@ -30,50 +30,62 @@ make all
 ```
 This will build the ix-device-plugin binary and ix-device-plugin image, see logging for more details.
 
-## Deploying the IX device plugin
-
-### Deploying the IX device plugin via Yaml
-
-```shell
-kubectl apply -f ix-device-plugin.yaml
-```
-
-### Deploying the IX device plugin via Helm
-
-```shell
-cd deployment
-helm package ix-device-plugin --version 4.3.0
-helm install ix-device-plugin ix-device-plugin-4.3.0.tgz
-```
-
 ## Configuring the IX device plugin
 
 The IX device plugin has a number of options that can be configured for it.
-These options can be configured via a config file when launching the device plugin. Here we explain what
-each of these options are and how to configure them in configmap.
 ```yaml
-# ix-config.yaml
+# check ix-device-plugin.yaml
 apiVersion: v1
 kind: ConfigMap
 data:
-ix-config: |-
+  ix-config: |-
+    resourceName: "iluvatar.com/gpu"
     flags:
       splitboard: false
-    sharing:
-      timeSlicing:
-          replicas: 4 
+      usevolcano: false
+      reset_gpu: false
+```
 
-metadata:
-  name: ix-config
-  namespace: kube-system
-```
-```shell
-kubectl create -f ix-config.yaml
-```
 | `Field`|        `Type `               |   `Description` |
 |--------|------------------------------|------------------|
 | `flags.splitboard`       | boolean  | Split GPU devices in every board(eg.BI-V150) if `splitboard` is `true`|
-| `sharing.timeSlicing.replicas`       | integer  | Specifies the number of GPU time-slicing ​​replicas for shared access|
+| `flags.usevolcano`       | boolean  | Enable Volcano integration (Use ix-device-plugin with ix-volcano-plugin)|
+| `flags.reset_gpu`       | boolean  | Enable Gpu reset|
+
+## Helm Install
+
+### Values
+
+| Parameter                   | Default            | Description                     |
+| --------------------------- | ------------------ | ------------------------------- |
+| `image.repository`          | `ix-device-plugin` | Image repository                |
+| `image.tag`                 | `4.4.0`            | Image tag                       |
+| `image.pullPolicy`          | `IfNotPresent`     | Image pull policy               |
+| `ixConfig.flags.splitboard` | `false`            | Enable splitboard mode          |
+| `ixConfig.flags.usevolcano` | `false`            | Enable Volcano integration      |
+| `ixConfig.flags.reset_gpu`  | `false`            | Enable GPU reset functionality  |
+
+
+### Example
+#### Install with Custom Image
+
+```bash
+helm install ix-device-plugin ix-device-plugin-4.4.0.tgz \
+  --set image.repository=registry.local/ix-device-plugin \
+  --set image.tag=test \
+  --set image.pullPolicy=Always \
+  -n kube-system
+```
+
+#### Install with Volcano plugin
+You can install the `ix-device-plugin` chart in two modes: **with Volcano plugin enabled** or **without Volcano**.
+
+Enable the `usevolcano` flag:
+```bash
+helm install ix-device-plugin ix-device-plugin-4.4.0.tgz \
+  --set ixConfig.flags.usevolcano=true \
+  -n kube-system
+```
 
 ## Enabling GPU Support in Kubernetes
 
@@ -109,7 +121,7 @@ spec:
               drop:
               - ALL
             privileged: true
-          image: "ix-device-plugin:4.3.0"
+          image: "ix-device-plugin:4.4.0"
           imagePullPolicy: IfNotPresent
           livenessProbe:
             exec:
@@ -148,6 +160,9 @@ spec:
         - hostPath:
             path: /sys
           name: sys
+        - hostPath:
+            path: /etc/udev/
+          name: udev-etc
         - hostPath:
             path: /dev
           name: dev

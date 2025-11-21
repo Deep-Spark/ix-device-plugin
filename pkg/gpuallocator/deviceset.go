@@ -63,8 +63,9 @@ type DeviceSet struct {
 	Devices  map[string]*Device
 	Lk       sync.Mutex
 	Count    uint
-	cfg      *config.Config
+	Cfg      *config.Config
 	Replicas int
+	ixmlLock sync.Mutex
 }
 
 type DeviceList []*Device
@@ -73,7 +74,6 @@ type Alias string
 type moduleContext struct {
 	ChipMap         map[string]*Chip
 	unManagedChip   map[string]*Chip
-	MainSet         *DeviceSet
 	timeLck         sync.Mutex
 	timeEventDone   bool
 	timeProcessUdev *time.Timer
@@ -118,6 +118,14 @@ func (a Alias) GetValue() (string, string) {
 	return cnt[0], cnt[1]
 }
 
+func (d *Device) GenerateIndexs() []int {
+	var ret []int
+	for _, c := range d.Chips {
+		ret = append(ret, int(c.Index))
+	}
+	return ret
+}
+
 func buildReplicaDevice(dev pluginapi.Device, parent *Device) *ReplicaDevice {
 	return &ReplicaDevice{Device: dev, Parent: parent}
 }
@@ -125,6 +133,12 @@ func buildReplicaDevice(dev pluginapi.Device, parent *Device) *ReplicaDevice {
 func buildChip(index uint, d ixml.Device) *Chip {
 	var err error
 	chip := Chip{Operations: d}
+
+	chip.UUID, err = d.DeviceGetUUID()
+	if err != nil {
+		klog.Errorf("Failed to get device uuid: %v", err)
+		return nil
+	}
 
 	chip.Name, err = d.DeviceGetName()
 	if err != nil {
@@ -134,11 +148,6 @@ func buildChip(index uint, d ixml.Device) *Chip {
 	chip.Minor, err = d.DeviceGetMinorNumber()
 	if err != nil {
 		klog.Errorf("Failed to get device minor number: %v", err)
-	}
-
-	chip.UUID, err = d.DeviceGetUUID()
-	if err != nil {
-		klog.Errorf("Failed to get device uuid: %v", err)
 	}
 
 	hasNuma, numa, err := d.DeviceGetNumaNode()
@@ -249,7 +258,7 @@ func processMultiChip(sideEffect *DeviceSet, ChipList []*Chip) {
 				dev.IsMulChip = true
 			} else {
 				Mul = append(Mul, chip)
-				libctx.unManagedChip[chip.ID] = chip
+				libctx.unManagedChip[chip.UUID] = chip
 			}
 		} else {
 			dev := buildDevice(chip, sideEffect.Replicas)
@@ -289,47 +298,6 @@ func processMultiChip(sideEffect *DeviceSet, ChipList []*Chip) {
 	for _, chip := range libctx.unManagedChip {
 		klog.Info("Warning: still have chips is not recognized :%v", chip)
 	}
-}
-
-func BuildDeviceSet(cfg *config.Config) *DeviceSet {
-	var ret DeviceSet
-	ret.Devices = make(map[string]*Device)
-	var ChipList []*Chip
-	ret.cfg = cfg
-	ret.Replicas = cfg.Sharing.TimeSlicing.Replicas
-
-	count, err := ixml.GetDeviceCount()
-	if err != nil {
-		klog.Infof("get device count failed.")
-		return nil
-	}
-
-	for i := uint(0); i < count; i++ {
-		devHandler, err := ixml.NewDeviceByIndex(i)
-		if err != nil {
-			klog.Errorf("Failed to get device-%d handle: %v", i, err)
-			continue
-		}
-
-		dev := buildChip(i, devHandler)
-		ChipList = append(ChipList, dev)
-		libctx.ChipMap[dev.UUID] = dev
-	}
-
-	libctx.MainSet = &ret
-	libctx.MainSet.Lk.Lock()
-
-	if ret.cfg.Flags.SplitBoard {
-		processSingleChip(&ret, ChipList)
-	} else {
-		processMultiChip(&ret, ChipList)
-	}
-	resetTopological(&ret.Devices)
-	ret.Count = count
-	libctx.count = count
-
-	libctx.MainSet.Lk.Unlock()
-	return &ret
 }
 
 func (d *Device) GetMasterChip() *Chip {
@@ -375,7 +343,7 @@ func (d *Device) GenerateIDS() []string {
 	return ret
 }
 
-func (d *Device) UpdateHelath() bool {
+func (d *Device) UpdateHealth() bool {
 	ret := false
 
 	//check wheter is offline card
@@ -432,91 +400,50 @@ func (d *DeviceSet) DeviceExist(id string) bool {
 	return false
 }
 
-func timeUdev() {
-	libctx.timeLck.Lock()
-	ChipList := *libctx.timeArg
-
-	libctx.MainSet.Lk.Lock()
-	if libctx.MainSet.cfg.Flags.SplitBoard {
-		processSingleChip(libctx.MainSet, ChipList)
-	} else {
-		processMultiChip(libctx.MainSet, ChipList)
+func BuildDeviceSet(cfg *config.Config) *DeviceSet {
+	chips, err := scanAllChips()
+	if err != nil {
+		return nil
 	}
-	resetTopological(&libctx.MainSet.Devices)
+	var ds DeviceSet
+	ds.Cfg = cfg
+	ds.Replicas = cfg.Sharing.TimeSlicing.Replicas
 
-	libctx.MainSet.Count = libctx.count
+	reconcileDeviceSet(&ds, chips)
 
-	libctx.timeArg = nil
-	libctx.timeEventDone = true
-
-	libctx.MainSet.Lk.Unlock()
-	libctx.timeLck.Unlock()
-	libctx.MainSet.ShowLayout()
+	return &ds
 }
 
 func (d *DeviceSet) updateDeviceEvent() {
-	var ChipList *[]*Chip
-	if libctx.timeArg != nil {
-		ChipList = libctx.timeArg
-	} else {
-		ChipList = new([]*Chip)
-	}
-
-	klog.Infof("count %v\n", libctx.count)
-	count, err := ixml.GetDeviceCount()
+	klog.Info("Start Update DeviceSet")
+	// Always do a full scan + full rebuild
+	chips, err := scanAllChips()
 	if err != nil {
 		klog.Infof("get device count failed, Failed to update Udev event.")
 		return
 	}
-	klog.Infof("new count %v\n", count)
-	if count == libctx.count {
-		klog.Infof("count is not changed, do nothing\n")
-		return
+
+	libctx.timeLck.Lock()
+	libctx.timeArg = &chips
+	if libctx.timeEventDone {
+		// First event after idle: schedule a delayed rebuild
+		libctx.timeEventDone = false
+		libctx.timeProcessUdev = time.AfterFunc(libctx.duration, func() {
+			// Actually rebuild after the debounce window
+			local := *libctx.timeArg
+			reconcileDeviceSet(d, local)
+
+			libctx.timeLck.Lock()
+			libctx.timeArg = nil
+			libctx.timeEventDone = true
+			libctx.timeLck.Unlock()
+		})
 	} else {
-		IndexSet := make(map[uint]bool)
-		for _, dev := range libctx.ChipMap {
-			newIdx, err := dev.Operations.DeviceGetIndex()
-			if err != nil {
-				klog.Errorf("Failed to get device-%d index, and set to 0xffff", dev.UUID)
-				newIdx = 0xffff
-			}
-			IndexSet[newIdx] = true
-			dev.Index = newIdx
-		}
-		for idx := uint(0); idx < count; idx++ {
-			if _, ok := IndexSet[idx]; ok {
-				continue
-			}
-			devHandler, err := ixml.NewDeviceByIndex(idx)
-			if err != nil {
-				klog.Errorf("Failed to get device-%d handle: %v", idx, err)
-				continue
-			}
-
-			dev := buildChip(idx, devHandler)
-			_, ok := libctx.ChipMap[dev.UUID]
-			if ok {
-				klog.Infof("Error: duplicated uuid-->  %v", dev.UUID)
-			} else {
-				klog.Infof("Added Device with the New uuid-->  %v", dev.UUID)
-
-				libctx.timeLck.Lock()
-				*ChipList = append(*ChipList, dev)
-				libctx.timeLck.Unlock()
-
-				libctx.ChipMap[dev.UUID] = dev
-			}
-		}
-
-		libctx.timeLck.Lock()
-		libctx.count = count
-		if libctx.timeEventDone {
-			libctx.timeEventDone = false
-			libctx.timeProcessUdev = time.AfterFunc(libctx.duration, timeUdev)
-		}
-		libctx.timeArg = ChipList
-		libctx.timeLck.Unlock()
+		// Merge multiple events: if another event arrives before the timer fires,
+		// update timeArg with the latest chip list
+		libctx.timeArg = &chips
 	}
+	libctx.timeLck.Unlock()
 }
 
 func (d *DeviceSet) UpdateUdev(dev *udev.Device) {
@@ -527,9 +454,69 @@ func (d *DeviceSet) UpdateUdev(dev *udev.Device) {
 		d.updateDeviceEvent()
 	case "remove":
 		klog.Infof("-- Remove -- udev event\n")
+		d.updateDeviceEvent()
+	case "change":
+		klog.Infof("-- Change -- udev event\n")
+		d.updateDeviceEvent()
 	default:
-		klog.Infof("[%v] udev event\n", action)
+		klog.Infof("[%v] udev event (ignored)\n", action)
 	}
+}
+
+func scanAllChips() ([]*Chip, error) {
+	klog.Info("Start scan all chips")
+	var chips []*Chip
+
+	count, err := ixml.GetDeviceCount()
+	if err != nil {
+		klog.Infof("get device count failed.")
+		return nil, err
+	}
+	klog.Infof("IXML device count = %d", count)
+
+	libctx.ChipMap = make(map[string]*Chip)
+	for i := uint(0); i < count; i++ {
+		devHandler, err := ixml.NewDeviceByIndex(i)
+		if err != nil {
+			klog.Errorf("Failed to get device-%d handle: %v", i, err)
+			continue
+		}
+		c := buildChip(i, devHandler)
+		if c == nil {
+			klog.Error("Undetected Chip")
+			continue
+		}
+		chips = append(chips, c)
+		libctx.ChipMap[c.UUID] = c
+	}
+
+	klog.Infof("Real device count = %d", len(chips))
+	return chips, nil
+}
+
+func reconcileDeviceSet(ds *DeviceSet, chips []*Chip) {
+	klog.Info("Reconcile DeviceSet")
+	if ds == nil {
+		return
+	}
+	ds.Lk.Lock()
+	defer ds.Lk.Unlock()
+
+	// rebuild DeviceSet
+	ds.Devices = make(map[string]*Device)
+	libctx.unManagedChip = make(map[string]*Chip)
+
+	if ds.Cfg.Flags.SplitBoard {
+		processSingleChip(ds, chips)
+	} else {
+		processMultiChip(ds, chips)
+	}
+	resetTopological(&ds.Devices)
+
+	ds.Count = uint(len(chips))
+	libctx.count = ds.Count
+
+	ds.ShowLayout()
 }
 
 func (d *DeviceSet) ShowLayout() {

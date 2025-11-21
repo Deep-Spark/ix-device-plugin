@@ -89,6 +89,14 @@ func getCudaVersion() (string, error) {
 	return fmt.Sprintf("%d", major) + "." + fmt.Sprintf("%d", minor), nil
 }
 
+func getIxmlVersion() (string, error) {
+	version, ret := goixml.SystemGetNVMLVersion()
+	if ret != goixml.SUCCESS {
+		return "", fmt.Errorf("Failed to get the current IXML version.")
+	}
+	return version, nil
+}
+
 func getDeviceByIndex(index uint) (*device, error) {
 	var dev goixml.Device
 	ret := goixml.DeviceGetHandleByIndex(index, &dev)
