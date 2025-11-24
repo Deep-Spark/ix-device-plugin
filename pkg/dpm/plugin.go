@@ -19,6 +19,7 @@ package dpm
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -135,14 +136,14 @@ func (p *iluvatarDevicePlugin) alignedAlloc(available, required []string, size i
 // Allocate returns list of devices.
 func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.AllocateRequest) (*pluginapi.AllocateResponse, error) {
 	responses := &pluginapi.AllocateResponse{}
-	response := &pluginapi.ContainerAllocateResponse{}
 
 	klog.Infof("Allocate request: %v", reqs)
 
-	var deviceIDs []string
-	var replicaIDs []string
 	var indexes []int
 	for _, req := range reqs.ContainerRequests {
+		response := &pluginapi.ContainerAllocateResponse{}
+		var deviceIDs []string
+		var replicaIDs []string
 
 		if p.kubeclient != nil {
 			volcanoDevices, isVolcano := p.UseVolcano(req.DevicesIDs)
@@ -192,11 +193,12 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 				replicaIDs = append(replicaIDs, id)
 			}
 		}
+		response.Devices = append(response.Devices, p.allocateCommonDeviceSpecs()...)
+		response.Envs = p.allocateEnvs("IX_VISIBLE_DEVICES", deviceIDs)
+		response.Envs["IX_REPLICA_DEVICES"] = strings.Join(replicaIDs, ",")
+
 		responses.ContainerResponses = append(responses.ContainerResponses, response)
 	}
-
-	response.Envs = p.allocateEnvs("IX_VISIBLE_DEVICES", deviceIDs)
-	response.Envs["IX_REPLICA_DEVICES"] = strings.Join(replicaIDs, ",")
 
 	klog.Infof("Allocate response: %v", responses)
 
@@ -208,6 +210,28 @@ func (p *iluvatarDevicePlugin) allocateEnvs(envvar string, devices []string) map
 	return map[string]string{
 		envvar: strings.Join(devices, ","),
 	}
+}
+
+func (p *iluvatarDevicePlugin) allocateCommonDeviceSpecs() []*pluginapi.DeviceSpec {
+	commonDevices := []string{
+		"/dev/itrctl",
+	}
+
+	var specs []*pluginapi.DeviceSpec
+	for _, dev := range commonDevices {
+		if _, err := os.Stat(dev); err != nil {
+			klog.Warningf("Control device %s not found on host, skipping mount", dev)
+			continue
+		}
+		spec := &pluginapi.DeviceSpec{
+			ContainerPath: dev,
+			HostPath:      dev,
+			Permissions:   "rw",
+		}
+		specs = append(specs, spec)
+	}
+
+	return specs
 }
 
 func (p *iluvatarDevicePlugin) allocateMountsByDeviceID(deviceID string) *pluginapi.Mount {

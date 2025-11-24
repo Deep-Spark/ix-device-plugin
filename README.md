@@ -59,7 +59,7 @@ data:
 | Parameter                   | Default            | Description                     |
 | --------------------------- | ------------------ | ------------------------------- |
 | `image.repository`          | `ix-device-plugin` | Image repository                |
-| `image.tag`                 | `4.4.0`            | Image tag                       |
+| `image.tag`                 | `<tag>`        | Image tag                       |
 | `image.pullPolicy`          | `IfNotPresent`     | Image pull policy               |
 | `ixConfig.flags.splitboard` | `false`            | Enable splitboard mode          |
 | `ixConfig.flags.usevolcano` | `false`            | Enable Volcano integration      |
@@ -70,7 +70,7 @@ data:
 #### Install with Custom Image
 
 ```bash
-helm install ix-device-plugin ix-device-plugin-4.4.0.tgz \
+helm install ix-device-plugin ix-device-plugin-4.3.0.tgz \
   --set image.repository=registry.local/ix-device-plugin \
   --set image.tag=test \
   --set image.pullPolicy=Always \
@@ -82,7 +82,7 @@ You can install the `ix-device-plugin` chart in two modes: **with Volcano plugin
 
 Enable the `usevolcano` flag:
 ```bash
-helm install ix-device-plugin ix-device-plugin-4.4.0.tgz \
+helm install ix-device-plugin ix-device-plugin-4.3.0.tgz \
   --set ixConfig.flags.usevolcano=true \
   -n kube-system
 ```
@@ -121,7 +121,7 @@ spec:
               drop:
               - ALL
             privileged: true
-          image: "ix-device-plugin:4.4.0"
+          image: "ix-device-plugin:4.3.0"
           imagePullPolicy: IfNotPresent
           livenessProbe:
             exec:
@@ -199,7 +199,7 @@ EOF
 ```shell
 kubectl logs corex-example
 +-----------------------------------------------------------------------------+
-|  IX-ML: 4.0.0       Driver Version: 4.1.0       CUDA Version: N/A           |
+|  IX-ML: <version>      Driver Version: <version>      CUDA Version: <version>           |
 |-------------------------------+----------------------+----------------------|
 | GPU  Name                     | Bus-Id               | Clock-SM  Clock-Mem  |
 | Fan  Temp  Perf  Pwr:Usage/Cap|      Memory-Usage    | GPU-Util  Compute M. |
