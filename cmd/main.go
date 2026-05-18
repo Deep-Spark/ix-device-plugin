@@ -21,7 +21,6 @@ import (
 	"flag"
 	"os"
 
-	"gitee.com/deep-spark/ix-device-plugin/pkg/config"
 	dpm "gitee.com/deep-spark/ix-device-plugin/pkg/dpm"
 	"github.com/urfave/cli/v2"
 	"k8s.io/klog/v2"
@@ -38,7 +37,6 @@ func main() {
 	c.Action = func(ctx *cli.Context) error {
 		return manager.Run(ctx, c.Flags)
 	}
-	c.Version = config.VERSION
 	c.Name = "Iluvatar Device Plugin"
 	c.Usage = "Iluvatar device plugin for Kubernetes"
 	c.Flags = []cli.Flag{

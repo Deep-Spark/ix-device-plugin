@@ -67,22 +67,22 @@ data:
 
 
 ### Example
-#### Install with Custom Image
+#### 🔹Install with Custom Image
 
 ```bash
-helm install ix-device-plugin ix-device-plugin-4.3.0.tgz \
+helm install ix-device-plugin ix-device-plugin-<version>.tgz \
   --set image.repository=registry.local/ix-device-plugin \
   --set image.tag=test \
   --set image.pullPolicy=Always \
   -n kube-system
 ```
 
-#### Install with Volcano plugin
+#### 🔹Install with Volcano plugin
 You can install the `ix-device-plugin` chart in two modes: **with Volcano plugin enabled** or **without Volcano**.
 
 Enable the `usevolcano` flag:
 ```bash
-helm install ix-device-plugin ix-device-plugin-4.3.0.tgz \
+helm install ix-device-plugin ix-device-plugin-<version>.tgz \
   --set ixConfig.flags.usevolcano=true \
   -n kube-system
 ```
@@ -121,7 +121,7 @@ spec:
               drop:
               - ALL
             privileged: true
-          image: "ix-device-plugin:4.3.0"
+          image: "ix-device-plugin:<tag>"
           imagePullPolicy: IfNotPresent
           livenessProbe:
             exec:
@@ -187,7 +187,7 @@ metadata:
 spec:
   containers:
   - name: corex-example
-    image: corex:4.0.0
+    image: corex:<tag>
     command: ["/usr/local/corex/bin/ixsmi"]
     args: ["-l"]
     resources:

@@ -54,6 +54,9 @@ volumes:
   - name: sys
     hostPath:
       path: /sys
+  - name: iluvatar-pci-driver
+    hostPath:
+      path: /sys/bus/pci/drivers/iluvatar
   - name: udev-etc
     hostPath:
       path: /etc/udev/
@@ -77,6 +80,9 @@ volumeMounts:
   - name: sys
     mountPath: /sys
     readOnly: true
+  - name: iluvatar-pci-driver
+    mountPath: /sys/bus/pci/drivers/iluvatar
+    readOnly: false
   - name: dev
     mountPath: /dev
   - name: ix-device-plugin-log
