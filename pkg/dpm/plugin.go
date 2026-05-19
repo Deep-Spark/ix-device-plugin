@@ -136,23 +136,56 @@ func (p *iluvatarDevicePlugin) alignedAlloc(available, required []string, size i
 // Allocate returns list of devices.
 func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.AllocateRequest) (*pluginapi.AllocateResponse, error) {
 	responses := &pluginapi.AllocateResponse{}
-
 	klog.Infof("Allocate request: %v", reqs)
 
-	var indexes []int
+	// reset before bind devices
+	uuidResetMap := make(map[string]bool)
 	for _, req := range reqs.ContainerRequests {
-		response := &pluginapi.ContainerAllocateResponse{}
-		var deviceIDs []string
-		var replicaIDs []string
-
 		if p.kubeclient != nil {
 			volcanoDevices, isVolcano := p.UseVolcano(req.DevicesIDs)
 			if isVolcano {
 				req.DevicesIDs = volcanoDevices
 			}
 		}
+		for _, id := range req.DevicesIDs {
+			if !p.devSet.DeviceExist(id) {
+				return nil, fmt.Errorf("Invalid allocation request for '%s': unknown device: %s", ResourceName, id)
+			}
+			// generateIDS: get all chip UUIDs of the device
+			dev := p.devSet.Devices[gpuallocator.Alias(id).Prefix()]
+			if dev == nil {
+				return nil, fmt.Errorf("Invalid allocation request for '%s': device not found: %s", ResourceName, id)
+			}
+			deviceIDs := dev.GenerateIDS()
+			for _, deviceID := range deviceIDs {
+				uuidResetMap[deviceID] = true
+			}
 
-		DeviceSpecList := make(map[string]bool)
+		}
+	}
+
+	var uuidResetList []string
+	for uuid := range uuidResetMap {
+		uuidResetList = append(uuidResetList, uuid)
+	}
+
+	p.resetGpusAndDeviceSet(uuidResetList)
+
+	// After GPU reset, DeviceSet is rebuilt and device UUIDs may have changed.
+	// Re-validate that all requested devices still exist in the new DeviceSet.
+	for _, req := range reqs.ContainerRequests {
+		for _, id := range req.DevicesIDs {
+			if !p.devSet.DeviceExist(id) {
+				return nil, fmt.Errorf("device '%s' no longer exists after GPU reset (UUID may have changed), please retry", id)
+			}
+		}
+	}
+
+	// bind devices
+	for _, req := range reqs.ContainerRequests {
+		response := &pluginapi.ContainerAllocateResponse{}
+		var deviceIDs []string
+		var replicaIDs []string
 
 		// if all of the device is allocated to device plugin, keep container /dev/iluvatar[devMinor] same order with host
 		if p.devSet.Replicas == 0 && len(req.DevicesIDs) == len(p.devSet.Devices) {
@@ -173,22 +206,22 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 				d.ContainerPath = config.ContainerPathPrefix + config.DeviceName + strconv.Itoa(i) // start from 0 in container
 				d.Permissions = "rw"
 				response.Devices = append(response.Devices, &d)
-				indexes = append(indexes, i)
 			}
 
 			deviceIDs = req.DevicesIDs
 			replicaIDs = req.DevicesIDs
 		} else {
+			deviceSpecList := make(map[string]bool)
 			for _, id := range req.DevicesIDs {
-				if !p.devSet.DeviceExist(id) {
-					return nil, fmt.Errorf("Invalid allocation request for '%s': unknown device: %s", ResourceName, id)
-				}
-				prefix := gpuallocator.Alias(id).Prefix()
-				if _, ok := DeviceSpecList[prefix]; !ok {
-					DeviceSpecList[prefix] = true
-					response.Devices = append(response.Devices, p.devSet.Devices[prefix].GenerateSpecList()...)
-					deviceIDs = append(deviceIDs, p.devSet.Devices[prefix].GenerateIDS()...)
-					indexes = append(indexes, p.devSet.Devices[prefix].GenerateIndexs()...)
+				deviceID := gpuallocator.Alias(id).Prefix()
+				if _, ok := deviceSpecList[deviceID]; !ok {
+					deviceSpecList[deviceID] = true
+					dev := p.devSet.Devices[deviceID]
+					if dev == nil {
+						return nil, fmt.Errorf("device '%s' not found in DeviceSet after GPU reset", deviceID)
+					}
+					response.Devices = append(response.Devices, dev.GenerateSpecList()...)
+					deviceIDs = append(deviceIDs, dev.GenerateIDS()...)
 				}
 				replicaIDs = append(replicaIDs, id)
 			}
@@ -201,8 +234,6 @@ func (p *iluvatarDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.All
 	}
 
 	klog.Infof("Allocate response: %v", responses)
-
-	p.resetGpusAndDeviceSet(indexes)
 	return responses, nil
 }
 

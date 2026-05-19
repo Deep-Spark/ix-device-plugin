@@ -90,6 +90,17 @@ func (f *Flags) UpdateFromCLIFlags(c *cli.Context, flags []cli.Flag) {
 	}
 }
 
+func (c *Config) CheckConfig() error {
+	// Replicas default value is 0, meaning no sharing.
+	if c.Sharing.TimeSlicing.Replicas < 0 {
+		return fmt.Errorf("timeSlicing.replicas must be > 0, got %d.", c.Sharing.TimeSlicing.Replicas)
+	}
+	if c.Flags.ResetGpu && c.Sharing.TimeSlicing.Replicas > 0 {
+		return fmt.Errorf("reset_gpu and timeSlicing.replicas cannot be used together.")
+	}
+	return nil
+}
+
 func LoadConfig(c *cli.Context, flags []cli.Flag) (*Config, error) {
 	reader, err := os.Open(ConfigDirectory)
 	if err != nil {

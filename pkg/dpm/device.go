@@ -49,14 +49,16 @@ type iluvatarDevice struct {
 	resetClient *kube.ResetClient
 }
 
-func (d *iluvatarDevice) resetGpusAndDeviceSet(indexs []int) {
+func (d *iluvatarDevice) resetGpusAndDeviceSet(uuids []string) {
 	if d.devSet.Cfg.Flags.ResetGpu && d.resetClient != nil {
-		err := d.resetClient.ResetGpus(indexs)
+		err := d.resetClient.ResetGpus(uuids)
 		if err != nil {
 			klog.Errorf("Reset gpus failed: %v", err)
 		} else {
 			klog.Infof("Reset gpus success")
 		}
+		// Wait for GPU reset to fully complete before rebuilding DeviceSet
+		time.Sleep(3 * time.Second)
 		d.devSet = gpuallocator.BuildDeviceSet(d.devSet.Cfg)
 		d.notifyNodeResourceUpdate(nil)
 	}

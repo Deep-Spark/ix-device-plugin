@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -281,7 +281,7 @@ func (rc *ResetClient) doneForReset() error {
 	return nil
 }
 
-func (rc *ResetClient) ResetGpus(indexs []int) error {
+func (rc *ResetClient) ResetGpus(uuids []string) error {
 	rc.resetLock.Lock()
 	klog.Info("reset gpu locking")
 	defer func() {
@@ -316,14 +316,7 @@ func (rc *ResetClient) ResetGpus(indexs []int) error {
 		time.Sleep(5 * time.Second)
 	}
 
-	sindex := ""
-	for i, index := range indexs {
-		sindex += strconv.Itoa(index)
-		if i != len(indexs)-1 {
-			sindex += ","
-		}
-	}
-	cmd := exec.Command("/usr/local/corex/bin/ixsmi", "-r", "-i", sindex)
+	cmd := exec.Command("/usr/local/corex/bin/ixsmi", "-r", "-i", strings.Join(uuids, ","))
 
 	output, cmdErr := cmd.Output()
 	if cmdErr != nil {

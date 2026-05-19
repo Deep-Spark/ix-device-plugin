@@ -123,6 +123,9 @@ spec:
             - mountPath: /sys
               name: sys
               readOnly: true
+            - mountPath: /sys/bus/pci/drivers/iluvatar
+              name: iluvatar-pci-driver
+              readOnly: false
             - mountPath: /dev
               name: dev
             - name: ixc
@@ -151,6 +154,9 @@ spec:
         - hostPath:
             path: /sys
           name: sys
+        - hostPath:
+            path: /sys/bus/pci/drivers/iluvatar
+          name: iluvatar-pci-driver
         - hostPath:
             path: /etc/udev/
           name: udev-etc
